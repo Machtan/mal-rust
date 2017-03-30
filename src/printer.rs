@@ -1,5 +1,31 @@
-use types::Mal;
+use types::{Mal, MapKey};
 use std::fmt::Write;
+
+fn pr_malstr_into(s: &str, string: &mut String, print_readably: bool) {
+    if ! print_readably {
+        write!(string, "\"{}\"", s).unwrap();
+    } else {
+        string.push('"');
+        for ch in s.chars() {
+            match ch {
+                '"' => {
+                    string.push('\\');
+                    string.push('"');
+                }
+                '\\' => {
+                    string.push('\\');
+                    string.push('\\');
+                }
+                '\n' => {
+                    string.push('\\');
+                    string.push('n');
+                }
+                ch => string.push(ch),
+            }
+        }
+        string.push('"');
+    }
+}
 
 fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
     use types::Mal::*;
@@ -9,30 +35,12 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
         Bool(true) => string.push_str("true"),
         Bool(false) => string.push_str("false"),
         Nil => string.push_str("nil"),
+        Kw(ref keyword) => {
+            string.push(':');
+            string.push_str(keyword.symbol());
+        }
         Str(ref s) => {
-            if ! print_readably {
-                write!(string, "\"{}\"", s).unwrap();
-            } else {
-                string.push('"');
-                for ch in s.chars() {
-                    match ch {
-                        '"' => {
-                            string.push('\\');
-                            string.push('"');
-                        }
-                        '\\' => {
-                            string.push('\\');
-                            string.push('\\');
-                        }
-                        '\n' => {
-                            string.push('\\');
-                            string.push('n');
-                        }
-                        ch => string.push(ch),
-                    }
-                }
-                string.push('"');
-            }
+            pr_malstr_into(s, string, print_readably);
         }
         List(ref list) => {
             string.push('(');
@@ -47,6 +55,35 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
                 }
             }
             string.push(')');
+        }
+        Arr(ref arr) => {
+            string.push('[');
+            let len = arr.len();
+            if len != 0 {
+                let last = len - 1;
+                for (i, item) in arr.iter().enumerate() {
+                    pr_str_into(item, string, print_readably);
+                    if i != last {
+                        string.push(' ');
+                    }
+                }
+            }
+            string.push(']');
+        }
+        Map(ref map) => {
+            string.push('{');
+            for (k, v) in map.inner.iter() {
+                match *k {
+                    MapKey::Str(ref s) => pr_malstr_into(s, string, print_readably),
+                    MapKey::Kw(ref kw) => {
+                        string.push(':');
+                        string.push_str(kw.symbol());
+                    }
+                }
+                string.push(' ');
+                pr_str_into(v, string, print_readably);
+            }
+            string.push('}');
         }
     }
 }

@@ -90,6 +90,8 @@ def print_results(passed, mandatory_failed, deferrable_failed, optional_failed):
         return "  {} {} tests failed {}".format(len(faillist), name, text)
     
     verdict = "SUCCES" if not mandatory_failed else "FAILURE"
+    if not mandatory_failed and not deferrable_failed and not optional_failed:
+        verdict = "PERFECT"
     
     print("")
     print("Results:")

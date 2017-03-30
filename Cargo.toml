@@ -3,11 +3,17 @@ name = "mal"
 version = "0.1.0"
 authors = ["Machtan <jako3047@gmail.com>"]
 
+[lib]
+name = "mal"
+path = "src/lib.rs"
+
 [[bin]]
 name = "step0_repl"
+path = "src/step0_repl.rs"
 
 [[bin]]
 name = "step1_read_print"
+path = "src/step1_read_print.rs"
 
 [dependencies]
 error-chain = "0.10"

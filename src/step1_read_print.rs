@@ -1,13 +1,11 @@
-mod types;
-mod reader;
-mod printer;
+extern crate mal;
 
-use types::Mal;
+use mal::Mal;
 use std::io::{self, Write, BufRead};
 use std::env;
 
 fn read(text: &str) -> Mal {
-    reader::read_str(text)
+    mal::read_str(text)
 }
 
 fn eval(expr: Mal) -> Mal {
@@ -15,7 +13,7 @@ fn eval(expr: Mal) -> Mal {
 }
 
 fn print(mal: &Mal) -> String {
-    printer::pr_str(mal, true)
+    mal::pr_str(mal, true)
 }
 
 fn rep(text: &str) -> String {

@@ -1,3 +1,4 @@
+use errors::*;
 use std::iter::Peekable;
 use std::str::Chars;
 use types::{MalList, Mal, Keyword, MalArr, MalMap, MapKey};
@@ -96,7 +97,7 @@ impl<'a> Reader<'a> {
         }
     }
     
-    fn read_string(&mut self) -> Result<Token, String> {
+    fn read_string(&mut self) -> Result<Token> {
         let mut string = String::new();
         let mut escaped = false;
         while let Some(ch) = self.chars.next() {
@@ -121,7 +122,7 @@ impl<'a> Reader<'a> {
                 escaped = false;
             }
         }
-        Err(format!("Unterminated string: '\"{}'", string))
+        bail!("Unterminated string: '\"{}'", string)
     }
     
     fn trail(&mut self) -> String {

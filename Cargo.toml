@@ -1,0 +1,13 @@
+[package]
+name = "mal"
+version = "0.1.0"
+authors = ["Machtan <jako3047@gmail.com>"]
+
+[[bin]]
+name = "step0_repl"
+
+[[bin]]
+name = "step1_read_print"
+
+[dependencies]
+error-chain = "0.10"

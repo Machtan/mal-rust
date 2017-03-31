@@ -15,5 +15,9 @@ path = "src/step0_repl.rs"
 name = "step1_read_print"
 path = "src/step1_read_print.rs"
 
+[[bin]]
+name = "step2_eval"
+path = "src/step2_eval.rs"
+
 [dependencies]
 error-chain = "0.10"

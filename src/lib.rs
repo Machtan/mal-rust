@@ -3,6 +3,8 @@
 extern crate error_chain;
 
 pub mod types;
+#[macro_use]
+pub mod macros;
 pub mod reader;
 pub mod printer;
 
@@ -34,13 +36,74 @@ mod errors {
             Lexer { pos: usize, source: String, msg: String } {
                 display("Lexer error: {}| {}", linepos_str(&source, *pos), msg)
             }
+            TypeError { expected: String, got: String } {
+                display("Type error: Expected {} got {}", expected, got)
+            }
         }
     }
 }
 
 pub use errors::*;
-pub use types::{Mal, MalList, MalArr, MalMap, Keyword};
+pub use types::{Mal, MalList, MalArr, MalMap, Keyword, Env};
 pub use reader::read_str;
 pub use printer::pr_str;
 
+fn add(args: MalList) -> Result<Mal> {
+    if args.len() < 2 {
+        bail!("'+' requires at least 2 arguments!");
+    }
+    let mut sum = 0.0;
+    for arg in args.iter() {
+        sum += arg.number()?;
+    }
+    Ok(Mal::Num(sum))
+}
 
+fn sub(args: MalList) -> Result<Mal> {
+    if args.len() < 2 {
+        bail!("'-' requires at least 2 arguments!")
+    }
+    let mut vals = args.iter();
+    let mut sum = vals.next().unwrap().number()?;
+    for arg in vals {
+        sum -= arg.number()?;
+    }
+    Ok(Mal::Num(sum))
+}
+
+fn mul(args: MalList) -> Result<Mal> {
+    if args.len() < 2 {
+        bail!("'*' requires at least 2 arguments!")
+    }
+    let mut vals = args.iter();
+    let mut sum = vals.next().unwrap().number()?;
+    for arg in vals {
+        sum *= arg.number()?;
+    }
+    Ok(Mal::Num(sum))
+}
+
+fn div(args: MalList) -> Result<Mal> {
+    if args.len() < 2 {
+        bail!("'/' requires at least 2 arguments!")
+    }
+    let mut vals = args.iter();
+    let mut sum = vals.next().unwrap().number()?;
+    for arg in vals {
+        let num = arg.number()?;
+        if num == 0.0 {
+            bail!("Division by 0");
+        }
+        sum /= num;
+    }
+    Ok(Mal::Num(sum))
+}
+
+pub fn core_env() -> Env {
+    let mut env = Env::new();
+    env.add_native_func("+", add).unwrap();
+    env.add_native_func("-", sub).unwrap();
+    env.add_native_func("*", mul).unwrap();
+    env.add_native_func("/", div).unwrap();
+    env
+}

@@ -11,6 +11,7 @@ TEST_DIR = LOCAL("maltests")
 STEPS = {
     "step0": "step0_repl",
     "step1": "step1_read_print",
+    "step2": "step2_eval",
 }
 
 def get_step(step: str) -> str:
@@ -147,6 +148,12 @@ def load_tests(step_name):
             curtest.clear()
         
         elif line.startswith(";"):
+            if "not found" in line:
+                if not curtest:
+                    raise Exception("Line {}: Found output line with no input".format(i+1))
+                tests.append((curtest[0], "", TestType.ShouldFail))
+                curtest.clear()
+            
             continue
         
         else:

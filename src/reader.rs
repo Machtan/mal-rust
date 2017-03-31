@@ -255,14 +255,26 @@ pub fn read_str(text: &str) -> Result<Mal> {
     read_form(&mut lexer)
 }
 
-fn read_list(lexer: &mut Lexer, end_token: TokenKind, start: usize) -> Result<Vec<Mal>> {
-    let mut list = Vec::new();
+fn read_arr(lexer: &mut Lexer, _start: usize) -> Result<MalArr> {
+    let mut list = MalArr::new();
     loop {
-        if lexer.peek().ok_or_else(|| Error::from("Unclosed list"))?.kind == end_token {
+        if lexer.peek().ok_or_else(|| Error::from("Unclosed list"))?.kind == TokenKind::BrackClose {
             lexer.next().unwrap();
             return Ok(list);
         } else {
-            list.push(read_form(lexer)?);
+            list.push_back(read_form(lexer)?);
+        }
+    }
+}
+
+fn read_list(lexer: &mut Lexer, _start: usize) -> Result<MalList> {
+    let mut list = MalList::new();
+    loop {
+        if lexer.peek().ok_or_else(|| Error::from("Unclosed list"))?.kind == TokenKind::ParClose {
+            lexer.next().unwrap();
+            return Ok(list);
+        } else {
+            list.push_back(read_form(lexer)?);
         }
     }
 }
@@ -273,14 +285,14 @@ pub fn read_atom(mut ident: String) -> Result<Mal> {
         '-' | '+' => {
             if let Some(ch) = ident.chars().nth(1) {
                 match ch {
-                    '0' ... '9' => Mal::Number(ident.parse().chain_err(|| "Could not parse number")?),
-                    _ => Mal::Symbol(ident),
+                    '0' ... '9' => Mal::Num(ident.parse().chain_err(|| "Could not parse number")?),
+                    _ => Mal::Sym(ident),
                 }
             } else {
-                Mal::Symbol(ident)
+                Mal::Sym(ident)
             }
         }
-        '0' ... '9' => Mal::Number(ident.parse().chain_err(|| "Could not parse number")?),
+        '0' ... '9' => Mal::Num(ident.parse().chain_err(|| "Could not parse number")?),
         ':' => {
             ident.remove(0);
             Mal::Kw(Keyword::new(ident))
@@ -290,7 +302,7 @@ pub fn read_atom(mut ident: String) -> Result<Mal> {
                 "true" => Mal::Bool(true),
                 "false" => Mal::Bool(false),
                 "nil" => Mal::Nil,
-                _ => Mal::Symbol(ident),
+                _ => Mal::Sym(ident),
             }
         }
     })
@@ -321,10 +333,10 @@ pub fn read_form(lexer: &mut Lexer) -> Result<Mal> {
     let token = lexer.next()?;
     Ok(match token.kind {
         ParOpen => {
-            MalList::new(read_list(lexer, ParClose, token.start)?).into()
+            read_list(lexer, token.start)?.into()
         }
         BrackOpen => {
-            MalArr::new(read_list(lexer, BrackClose, token.start)?).into()
+            read_arr(lexer, token.start)?.into()
         }
         CurlOpen => {
             read_hash_map(lexer)?
@@ -335,23 +347,23 @@ pub fn read_form(lexer: &mut Lexer) -> Result<Mal> {
         }
         Apo => {
             let quoted = read_form(lexer)?;
-            MalList::new(vec![Mal::Symbol("quote".into()), quoted]).into()
+            list!["quote", quoted].into()
         }
         BackTick => {
             let quoted = read_form(lexer)?;
-            MalList::new(vec![Mal::Symbol("quasiquote".into()), quoted]).into()
+            list!["quasiquote", quoted].into()
         }
         Tilde => {
             let unquoted = read_form(lexer)?;
-            MalList::new(vec![Mal::Symbol("unquote".into()), unquoted]).into()
+            list!["unquote", unquoted].into()
         }
         Tadpole => {
             let unquoted = read_form(lexer)?;
-            MalList::new(vec![Mal::Symbol("splice-unquote".into()), unquoted]).into()
+            list!["splice-unquote", unquoted].into()
         }
         At => {
             let derefed = read_form(lexer)?;
-            MalList::new(vec![Mal::Symbol("deref".into()), derefed]).into()
+            list!["deref", derefed].into()
         }
         Str(string) => {
             Mal::Str(string)
@@ -359,7 +371,7 @@ pub fn read_form(lexer: &mut Lexer) -> Result<Mal> {
         Hat => {
             let meta = read_form(lexer)?;
             let target = read_form(lexer)?;
-            MalList::new(vec![Mal::Symbol("with-meta".into()), target, meta]).into()
+            list!["with-meta", target, meta].into()
         }
         other => panic!("Unsuported token: {:?}", other),
     })

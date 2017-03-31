@@ -1,17 +1,73 @@
+use errors::*;
 use std::ops;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone)]
 pub enum Mal {
     List(MalList),
     Arr(MalArr),
-    Number(i32),
-    Symbol(String),
+    Num(f64),
+    Sym(String),
     Str(String),
     Bool(bool),
     Kw(Keyword),
     Map(MalMap),
+    Fn(MalFunc),
     Nil,
+}
+impl Mal {
+    pub fn type_name(&self) -> &'static str {
+        use self::Mal::*;
+        match *self {
+            List(_) => "list",
+            Arr(_) => "array",
+            Num(_) => "number",
+            Sym(_) => "symbol",
+            Str(_) => "string",
+            Bool(_) => "boolean",
+            Kw(_) => "keyword",
+            Map(_) => "hashmap",
+            Fn(_) => "function",
+            Nil => "nil",
+         }
+    }
+    
+    pub fn number(&self) -> Result<f64> {
+        match *self {
+            Mal::Num(val) => Ok(val),
+            ref other => Err(ErrorKind::TypeError{
+                expected: String::from("number"),
+                got: other.type_name().into()
+            }.into()),
+        }
+    }
+    
+    pub fn list(self) -> Result<MalList> {
+        match self {
+            Mal::List(list) => Ok(list),
+            ref other => Err(ErrorKind::TypeError{
+                expected: String::from("list"),
+                got: other.type_name().into()
+            }.into()),
+        }
+    }
+    
+    pub fn call(&self, args: MalList) -> Result<Mal> {
+        match *self {
+            Mal::Fn(MalFunc::Native(_, func)) => func(args),
+            ref other => bail!("Attempted to call value of type '{}'", other.type_name()),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for Mal {
+    fn from(value: &'a str) -> Mal {
+        if value.starts_with(":") {
+            Mal::Kw(Keyword::new(&value[1..]))
+        } else {
+            Mal::Sym(String::from(value))
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -31,11 +87,11 @@ impl Keyword {
 
 #[derive(Debug, Clone)]
 pub struct MalList {
-    items: Vec<Mal>,
+    items: VecDeque<Mal>,
 }
 impl MalList {
-    pub fn new(items: Vec<Mal>) -> MalList {
-        MalList { items }
+    pub fn new() -> MalList {
+        MalList { items: VecDeque::new() }
     }
 }
 
@@ -46,7 +102,7 @@ impl From<MalList> for Mal {
 }
 
 impl ops::Deref for MalList {
-    type Target = Vec<Mal>;
+    type Target = VecDeque<Mal>;
     
     fn deref(&self) -> &Self::Target {
         &self.items
@@ -61,11 +117,11 @@ impl ops::DerefMut for MalList {
 
 #[derive(Debug, Clone)]
 pub struct MalArr {
-    items: Vec<Mal>,
+    items: VecDeque<Mal>,
 }
 impl MalArr {
-    pub fn new(items: Vec<Mal>) -> MalArr {
-        MalArr { items }
+    pub fn new() -> MalArr {
+        MalArr { items: VecDeque::new() }
     }
 }
 
@@ -76,7 +132,7 @@ impl From<MalArr> for Mal {
 }
 
 impl ops::Deref for MalArr {
-    type Target = Vec<Mal>;
+    type Target = VecDeque<Mal>;
     
     fn deref(&self) -> &Self::Target {
         &self.items
@@ -117,8 +173,8 @@ impl MalMap {
         MalMap { inner: HashMap::new() }
     }
     
-    pub fn insert<K: Into<MapKey>>(&mut self, key: K, value: Mal) -> Option<Mal> {
-        self.inner.insert(key.into(), value)
+    pub fn insert<K: Into<MapKey>, V: Into<Mal>>(&mut self, key: K, value: V) -> Option<Mal> {
+        self.inner.insert(key.into(), value.into())
     }
 }
 
@@ -127,3 +183,58 @@ impl From<MalMap> for Mal {
         Mal::Map(value)
     }
 }
+
+pub type NativeFunc = fn(MalList) -> Result<Mal>;
+
+#[derive(Debug, Clone)]
+pub enum MalFunc {
+    Native(&'static str, NativeFunc),
+}
+
+impl From<MalFunc> for Mal {
+    fn from(value: MalFunc) -> Mal {
+        Mal::Fn(value)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Env {
+    pub(crate) map: HashMap<String, Mal>,
+}
+
+impl Env {
+    pub fn new() -> Env {
+        Env { map: HashMap::new() }
+    }
+    
+    pub fn get(&self, ident: &str) -> Result<Mal> {
+        if let Some(mal) = self.map.get(ident) {
+            Ok(mal.clone())
+        } else {
+            bail!("Unknown variable: '{}'", ident);
+        }
+    }
+    
+    pub fn add_native_func(&mut self, name: &'static str, func: NativeFunc) -> Result<()> {
+        if self.map.contains_key(name) {
+            bail!("Native function '{}' declared twice!", name);
+        }
+        self.map.insert(name.into(), MalFunc::Native(name, func).into());
+        Ok(())
+    }
+}
+
+impl ops::Deref for Env {
+    type Target = HashMap<String, Mal>;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
+}
+
+impl ops::DerefMut for Env {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.map
+    }
+}
+

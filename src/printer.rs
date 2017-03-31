@@ -1,4 +1,4 @@
-use types::{Mal, MapKey};
+use types::{Mal, MapKey, MalFunc};
 use std::fmt::Write;
 
 fn pr_malstr_into(s: &str, string: &mut String, print_readably: bool) {
@@ -30,8 +30,8 @@ fn pr_malstr_into(s: &str, string: &mut String, print_readably: bool) {
 fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
     use types::Mal::*;
     match *mal {
-        Number(num) => write!(string, "{}", num).unwrap(),
-        Symbol(ref sym) => string.push_str(sym),
+        Num(num) => write!(string, "{}", num).unwrap(),
+        Sym(ref sym) => string.push_str(sym),
         Bool(true) => string.push_str("true"),
         Bool(false) => string.push_str("false"),
         Nil => string.push_str("nil"),
@@ -41,6 +41,11 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
         }
         Str(ref s) => {
             pr_malstr_into(s, string, print_readably);
+        }
+        Fn(ref f) => {
+            match *f {
+                MalFunc::Native(name, _) => string.push_str(name),
+            }
         }
         List(ref list) => {
             string.push('(');

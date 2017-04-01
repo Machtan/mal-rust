@@ -184,6 +184,20 @@ impl From<MalMap> for Mal {
     }
 }
 
+impl ops::Deref for MalMap {
+    type Target = HashMap<MapKey, Mal>;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl ops::DerefMut for MalMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
 pub type NativeFunc = fn(MalList) -> Result<Mal>;
 
 #[derive(Debug, Clone)]

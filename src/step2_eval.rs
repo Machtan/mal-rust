@@ -1,6 +1,6 @@
 extern crate mal;
 
-use mal::{Mal, Env, MalList};
+use mal::{Mal, Env, MalList, MalArr, MalMap};
 use std::io::{self, Write, BufRead};
 use std::env;
 
@@ -10,6 +10,7 @@ fn read(text: &str) -> mal::Result<Mal> {
     mal::read_str(text)
 }
 
+/// Resolves symbols to their bound environment values.
 fn eval_ast(expr: Mal, env: Env) -> mal::Result<Mal> {
     use mal::Mal::*;
     match expr {
@@ -22,10 +23,27 @@ fn eval_ast(expr: Mal, env: Env) -> mal::Result<Mal> {
             }
             Ok(new_list.into())
         }
+        Arr(arr) => {
+            let mut new_arr = MalArr::new();
+            for item in arr.iter() {
+                let val = eval(item.clone(), env.clone())?;
+                new_arr.push_back(val);
+            }
+            Ok(new_arr.into())
+        }
+        Map(map) => {
+            let mut new_map = MalMap::new();
+            for (key, item) in map.iter() {
+                let val = eval(item.clone(), env.clone())?;
+                new_map.insert(key.clone(), val);
+            }
+            Ok(new_map.into())
+        }
         other => Ok(other),
     }
 }
 
+/// Evaluates list forms.
 fn eval(expr: Mal, env: Env) -> mal::Result<Mal> {
     match expr {
         Mal::List(list) => {

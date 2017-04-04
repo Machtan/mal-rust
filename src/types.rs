@@ -1,6 +1,8 @@
 use errors::*;
 use std::ops;
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
+use std::clone;
 
 #[derive(Debug, Clone)]
 pub enum Mal {
@@ -35,24 +37,32 @@ impl Mal {
     pub fn number(&self) -> Result<f64> {
         match *self {
             Mal::Num(val) => Ok(val),
-            ref other => Err(ErrorKind::TypeError{
-                expected: String::from("number"),
-                got: other.type_name().into()
-            }.into()),
+            ref other => self.conv_err("number", other),
         }
+    }
+    
+    fn conv_err<S: Into<String>, T>(&self, expected: S, got: &Mal) -> Result<T> {
+        Err(ErrorKind::TypeError {
+            expected: expected.into(),
+            got: got.type_name().into()
+        }.into())
     }
     
     pub fn list(self) -> Result<MalList> {
         match self {
             Mal::List(list) => Ok(list),
-            ref other => Err(ErrorKind::TypeError{
-                expected: String::from("list"),
-                got: other.type_name().into()
-            }.into()),
+            ref other => self.conv_err("list", other),
         }
     }
     
-    pub fn call(&self, args: MalList) -> Result<Mal> {
+    pub fn symbol(self) -> Result<Symbol> {
+        match self {
+            Mal::Sym(symbol) => Ok(symbol),
+            ref other => self.conv_err("symbol", other),
+        }
+    }
+    
+    pub fn call(&self, args: &MalList) -> Result<Mal> {
         match *self {
             Mal::Fn(MalFunc::Native(_, func)) => func(args),
             ref other => bail!("Attempted to call value of type '{}'", other.type_name()),
@@ -111,7 +121,7 @@ impl Keyword {
 
 #[derive(Debug, Clone)]
 pub struct MalList {
-    items: VecDeque<Mal>,
+    pub(crate) items: VecDeque<Mal>,
 }
 impl MalList {
     #[inline]
@@ -142,7 +152,7 @@ impl ops::DerefMut for MalList {
 
 #[derive(Debug, Clone)]
 pub struct MalArr {
-    items: VecDeque<Mal>,
+    pub(crate) items: VecDeque<Mal>,
 }
 
 impl MalArr {
@@ -227,11 +237,31 @@ impl ops::DerefMut for MalMap {
     }
 }
 
-pub type NativeFunc = fn(MalList) -> Result<Mal>;
+pub type NativeFunc = fn(&MalList) -> Result<Mal>;
 
-#[derive(Debug, Clone)]
 pub enum MalFunc {
     Native(&'static str, NativeFunc),
+}
+
+impl fmt::Debug for MalFunc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::MalFunc::*;
+        match *self {
+            Native(name, _) => {
+                write!(f, "MalFunc {{ native \"{}\" }}", name)
+            }
+        }
+    }
+}
+
+impl clone::Clone for MalFunc {
+    fn clone(&self) -> Self {
+        match *self {
+            MalFunc::Native(name, func) => {
+                MalFunc::Native(name, func)
+            }
+        }
+    }
 }
 
 impl From<MalFunc> for Mal {

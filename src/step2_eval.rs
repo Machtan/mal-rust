@@ -1,4 +1,4 @@
-extern crate mal;
+/*extern crate mal;
 
 use mal::{Mal, Env, MalList, MalArr, MalMap};
 use std::io::{self, Write, BufRead};
@@ -130,4 +130,5 @@ fn main() {
             }
         }
     }
-}
+}*/
+fn main() {}

@@ -1,70 +1,85 @@
 extern crate mal;
 
-use mal::{Mal, Env, MalList, MalArr, MalMap};
+use mal::{Mal, Env, MalList};
 use std::io::{self, Write, BufRead};
 use std::env;
 
-// TODO: Cow the Env.
 
 fn read(text: &str) -> mal::Result<Mal> {
     mal::read_str(text)
 }
 
-/// Resolves symbols to their bound environment values.
-fn eval_ast(expr: Mal, env: Env) -> mal::Result<Mal> {
+/// Resolves symbols to their environment values.
+fn eval_ast(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
     use mal::Mal::*;
-    match expr {
-        Sym(ident) => Ok(env.get(&ident)?),
-        List(list) => {
-            let mut new_list = MalList::new();
-            for item in list.iter() {
-                let val = eval(item.clone(), env.clone())?;
-                new_list.push_back(val);
-            }
-            Ok(new_list.into())
+    let mut new_val = None;
+    match *expr {
+        Sym(ref ident) => {
+            new_val = Some(env.get(&ident)?);
+            
+        },
+        List(ref mut list) => {
+            eval_list(list, env)?;
         }
-        Arr(arr) => {
-            let mut new_arr = MalArr::new();
-            for item in arr.iter() {
-                let val = eval(item.clone(), env.clone())?;
-                new_arr.push_back(val);
+        Arr(ref mut arr) => {
+            for item in arr.iter_mut() {
+                eval(item, env)?;
             }
-            Ok(new_arr.into())
         }
-        Map(map) => {
-            let mut new_map = MalMap::new();
-            for (key, item) in map.iter() {
-                let val = eval(item.clone(), env.clone())?;
-                new_map.insert(key.clone(), val);
+        Map(ref mut map) => {
+            for (_, item) in map.iter_mut() {
+                eval(item, env)?;
             }
-            Ok(new_map.into())
         }
-        other => Ok(other),
+        _ => {},
     }
+    if let Some(val) = new_val {
+        *expr = val;
+    }
+    Ok(())
+}
+
+fn eval_list(list: &mut MalList, env: &mut Env) -> mal::Result<()> {
+    for item in list.iter_mut() {
+        eval(item, env)?;
+    }
+    Ok(())
+}
+
+fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
+    //let first = list.pop_front().unwrap().symbol()?;
+    
+    eval_list(list, env)?;
+    let first = list.pop_front().unwrap();
+    first.call(list)
 }
 
 /// Evaluates list forms.
-fn eval(expr: Mal, env: Env) -> mal::Result<Mal> {
-    match expr {
-        Mal::List(list) => {
-            if list.is_empty() {
-                Ok(list.into())
-            } else {
-                let mut evaled = eval_ast(list.into(), env.clone())?.list().unwrap();
-                let first = evaled.pop_front().unwrap();
-                first.call(evaled)
+fn eval(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
+    let mut new_val = None;
+    match *expr {
+        Mal::List(ref mut list) => {
+            if ! list.is_empty() {
+                new_val = Some(apply(list, env)?);
             }
         }
-        other => eval_ast(other, env.clone())
+        _ => eval_ast(expr, env)?,
     }
+    if let Some(val) = new_val {
+        *expr = val;
+    }
+    Ok(())
 }
 
 fn print(mal: &Mal) -> String {
     mal::pr_str(mal, true)
 }
 
-fn rep(text: &str, env: Env) -> mal::Result<String> {
-    Ok(print(&eval(read(text)?, env)?))
+fn rep(text: &str, env: &mut Env) -> mal::Result<String> {
+    let mut val = read(text)?;
+    eval(&mut val, env)?;
+    let text = print(&val);
+    Ok(text)
 }
 
 
@@ -87,13 +102,13 @@ fn print_err(e: &mal::Error) {
 }
 
 fn main() {
-    let env = mal::core_env();
+    let mut env = mal::core_env();
     
     // If args are given, don't start in interactive mode.
     let args = env::args().skip(1).collect::<Vec<_>>();
     if ! args.is_empty() {
         for arg in args {
-            match rep(&arg, env.clone()) {
+            match rep(&arg, &mut env) {
                 Ok(res) => {
                     println!("{}", res);
                     let stdout = io::stdout();
@@ -119,7 +134,7 @@ fn main() {
         let stdin = io::stdin();
         stdin.lock().read_line(&mut input).unwrap();
         
-        match rep(&input, env.clone()) {
+        match rep(&input, &mut env) {
             Ok(string) => {
                 println!("{}", string);
                 let stdout = io::stdout();

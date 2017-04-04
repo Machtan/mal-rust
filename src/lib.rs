@@ -50,7 +50,7 @@ pub use env::Env;
 pub use reader::read_str;
 pub use printer::pr_str;
 
-fn add(args: MalList) -> Result<Mal> {
+fn add(args: &MalList) -> Result<Mal> {
     if args.len() < 2 {
         bail!("'+' requires at least 2 arguments!");
     }
@@ -61,7 +61,7 @@ fn add(args: MalList) -> Result<Mal> {
     Ok(Mal::Num(sum))
 }
 
-fn sub(args: MalList) -> Result<Mal> {
+fn sub(args: &MalList) -> Result<Mal> {
     if args.len() < 2 {
         bail!("'-' requires at least 2 arguments!")
     }
@@ -73,7 +73,7 @@ fn sub(args: MalList) -> Result<Mal> {
     Ok(Mal::Num(sum))
 }
 
-fn mul(args: MalList) -> Result<Mal> {
+fn mul(args: &MalList) -> Result<Mal> {
     if args.len() < 2 {
         bail!("'*' requires at least 2 arguments!")
     }
@@ -85,7 +85,7 @@ fn mul(args: MalList) -> Result<Mal> {
     Ok(Mal::Num(sum))
 }
 
-fn div(args: MalList) -> Result<Mal> {
+fn div(args: &MalList) -> Result<Mal> {
     if args.len() < 2 {
         bail!("'/' requires at least 2 arguments!")
     }

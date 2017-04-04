@@ -49,8 +49,12 @@ impl Env {
         }
     }
     
-    pub fn insert<K: Into<Symbol>, V: Into<Mal>>(&mut self, ident: K, value: V) -> Option<Mal> {
-        self.map.insert(ident.into(), value.into())
+    pub fn insert<K: Into<Symbol>, V: Into<Mal>>(&mut self, ident: K, value: V) {
+        let symbol = ident.into();
+        match self.map.insert(symbol.clone(), value.into()) {
+            None => self.history.push(EnvChange::BindingAdded(symbol)),
+            Some(old_value) => self.history.push(EnvChange::BindingReplaced(symbol, old_value))
+        }
     }
     
     pub fn add_native_func(&mut self, name: &'static str, func: NativeFunc) -> Result<()> {

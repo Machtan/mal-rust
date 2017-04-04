@@ -34,6 +34,13 @@ impl Mal {
          }
     }
     
+    fn conv_err<S: Into<String>, T>(&self, expected: S, got: &Mal) -> Result<T> {
+        Err(ErrorKind::TypeError {
+            expected: expected.into(),
+            got: got.type_name().into()
+        }.into())
+    }
+    
     pub fn number(&self) -> Result<f64> {
         match *self {
             Mal::Num(val) => Ok(val),
@@ -41,11 +48,12 @@ impl Mal {
         }
     }
     
-    fn conv_err<S: Into<String>, T>(&self, expected: S, got: &Mal) -> Result<T> {
-        Err(ErrorKind::TypeError {
-            expected: expected.into(),
-            got: got.type_name().into()
-        }.into())
+    pub fn as_list_or_array(&mut self) -> Result<&mut VecDeque<Mal>> {
+        match *self {
+            Mal::List(ref mut list) => Ok(list.inner()),
+            Mal::Arr(ref mut arr) => Ok(arr.inner()),
+            ref other => self.conv_err("array or list", other),
+        }
     }
     
     pub fn list(self) -> Result<MalList> {
@@ -128,6 +136,11 @@ impl MalList {
     pub fn new() -> MalList {
         MalList { items: VecDeque::new() }
     }
+    
+    #[inline]
+    pub fn inner(&mut self) -> &mut VecDeque<Mal> {
+        &mut self.items
+    }
 }
 
 impl From<MalList> for Mal {
@@ -159,6 +172,11 @@ impl MalArr {
     #[inline]
     pub fn new() -> MalArr {
         MalArr { items: VecDeque::new() }
+    }
+    
+    #[inline]
+    pub fn inner(&mut self) -> &mut VecDeque<Mal> {
+        &mut self.items
     }
 }
 

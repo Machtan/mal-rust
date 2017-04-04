@@ -38,7 +38,7 @@ pub mod errors {
                 display("Lexer error: {}| {}", linepos_str(&source, *pos), msg)
             }
             TypeError { expected: String, got: String } {
-                display("Type error: Expected {} got {}", expected, got)
+                display("Type error: Expected {}, got {}", expected, got)
             }
         }
     }

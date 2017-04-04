@@ -76,8 +76,9 @@ fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
         }
         "let*" => {
             assert_arg_len("let*", 2, list)?;
-            let mut bindings = list.pop_front().unwrap().list()
-                .chain_err(|| "let*: Invalid list of bindings")?;
+            let mut value = list.pop_front().unwrap();
+            let bindings = value.as_list_or_array()
+                .chain_err(|| "let*: Invalid set of bindings")?;
             if (bindings.len() % 2) != 0 {
                 bail!("let*: odd number of elements in binding list");
             }
@@ -85,7 +86,7 @@ fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
             env.with_new_scope(|env| {
                 while ! bindings.is_empty() {
                     let sym = bindings.pop_front().unwrap().symbol()
-                        .chain_err(|| "let*: Invalid variable")?;
+                        .chain_err(|| "let*: Invalid binding variable")?;
                     let mut val = bindings.pop_front().unwrap();
                     eval(&mut val, env)?;
                     env.set(sym, val);

@@ -7,7 +7,7 @@ pub enum Mal {
     List(MalList),
     Arr(MalArr),
     Num(f64),
-    Sym(String),
+    Sym(Symbol),
     Str(String),
     Bool(bool),
     Kw(Keyword),
@@ -65,8 +65,30 @@ impl<'a> From<&'a str> for Mal {
         if value.starts_with(":") {
             Mal::Kw(Keyword::new(&value[1..]))
         } else {
-            Mal::Sym(String::from(value))
+            Mal::Sym(Symbol::new(value))
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Symbol {
+    pub(crate) inner: String,
+}
+
+impl Symbol {
+    #[inline]
+    pub fn new<S: Into<String>>(value: S) -> Symbol {
+        Symbol { inner: value.into() }
+    }
+    
+    #[inline]
+    pub fn text(&self) -> &str {
+        &self.inner
+    }
+    
+    #[inline]
+    pub fn into_string(self) -> String {
+        self.inner
     }
 }
 
@@ -76,10 +98,12 @@ pub struct Keyword {
 }
 
 impl Keyword {
+    #[inline]
     pub fn new<S: Into<String>>(symbol: S) -> Keyword {
         Keyword { sym: symbol.into() }
     }
     
+    #[inline]
     pub fn symbol(&self) -> &str {
         &self.sym
     }
@@ -90,6 +114,7 @@ pub struct MalList {
     items: VecDeque<Mal>,
 }
 impl MalList {
+    #[inline]
     pub fn new() -> MalList {
         MalList { items: VecDeque::new() }
     }
@@ -119,7 +144,9 @@ impl ops::DerefMut for MalList {
 pub struct MalArr {
     items: VecDeque<Mal>,
 }
+
 impl MalArr {
+    #[inline]
     pub fn new() -> MalArr {
         MalArr { items: VecDeque::new() }
     }
@@ -169,10 +196,12 @@ pub struct MalMap {
 }
 
 impl MalMap {
+    #[inline]
     pub fn new() -> MalMap {
         MalMap { inner: HashMap::new() }
     }
     
+    #[inline]
     pub fn insert<K: Into<MapKey>, V: Into<Mal>>(&mut self, key: K, value: V) -> Option<Mal> {
         self.inner.insert(key.into(), value.into())
     }
@@ -208,47 +237,6 @@ pub enum MalFunc {
 impl From<MalFunc> for Mal {
     fn from(value: MalFunc) -> Mal {
         Mal::Fn(value)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Env {
-    pub(crate) map: HashMap<String, Mal>,
-}
-
-impl Env {
-    pub fn new() -> Env {
-        Env { map: HashMap::new() }
-    }
-    
-    pub fn get(&self, ident: &str) -> Result<Mal> {
-        if let Some(mal) = self.map.get(ident) {
-            Ok(mal.clone())
-        } else {
-            bail!("Unknown variable: '{}'", ident);
-        }
-    }
-    
-    pub fn add_native_func(&mut self, name: &'static str, func: NativeFunc) -> Result<()> {
-        if self.map.contains_key(name) {
-            bail!("Native function '{}' declared twice!", name);
-        }
-        self.map.insert(name.into(), MalFunc::Native(name, func).into());
-        Ok(())
-    }
-}
-
-impl ops::Deref for Env {
-    type Target = HashMap<String, Mal>;
-    
-    fn deref(&self) -> &Self::Target {
-        &self.map
-    }
-}
-
-impl ops::DerefMut for Env {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.map
     }
 }
 

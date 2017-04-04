@@ -1,7 +1,7 @@
 use errors::*;
 use std::iter::Peekable;
 use std::str::CharIndices;
-use types::{MalList, Mal, Keyword, MalArr, MalMap, MapKey};
+use types::{MalList, Mal, Keyword, MalArr, MalMap, MapKey, Symbol};
 
 // Tokens
 /* 
@@ -286,10 +286,10 @@ pub fn read_atom(mut ident: String) -> Result<Mal> {
             if let Some(ch) = ident.chars().nth(1) {
                 match ch {
                     '0' ... '9' => Mal::Num(ident.parse().chain_err(|| "Could not parse number")?),
-                    _ => Mal::Sym(ident),
+                    _ => Mal::Sym(Symbol::new(ident)),
                 }
             } else {
-                Mal::Sym(ident)
+                Mal::Sym(Symbol::new(ident))
             }
         }
         '0' ... '9' => Mal::Num(ident.parse().chain_err(|| "Could not parse number")?),
@@ -302,7 +302,7 @@ pub fn read_atom(mut ident: String) -> Result<Mal> {
                 "true" => Mal::Bool(true),
                 "false" => Mal::Bool(false),
                 "nil" => Mal::Nil,
-                _ => Mal::Sym(ident),
+                _ => Mal::Sym(Symbol::new(ident)),
             }
         }
     })

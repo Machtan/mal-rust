@@ -3,6 +3,7 @@
 extern crate error_chain;
 
 pub mod types;
+pub mod env;
 #[macro_use]
 pub mod macros;
 pub mod reader;
@@ -44,7 +45,8 @@ mod errors {
 }
 
 pub use errors::*;
-pub use types::{Mal, MalList, MalArr, MalMap, Keyword, Env};
+pub use types::{Mal, MalList, MalArr, MalMap, Keyword};
+pub use env::Env;
 pub use reader::read_str;
 pub use printer::pr_str;
 

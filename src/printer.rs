@@ -31,7 +31,7 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
     use types::Mal::*;
     match *mal {
         Num(num) => write!(string, "{}", num).unwrap(),
-        Sym(ref sym) => string.push_str(sym),
+        Sym(ref sym) => string.push_str(sym.text()),
         Bool(true) => string.push_str("true"),
         Bool(false) => string.push_str("false"),
         Nil => string.push_str("nil"),

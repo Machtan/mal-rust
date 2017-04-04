@@ -66,8 +66,8 @@ fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
                 .chain_err(|| "def!: Invalid first argument")?;
             let mut val = list.pop_front().unwrap();
             eval(&mut val, env)?;
-            env.set(sym, val);
-            Ok(Mal::Nil)
+            env.set(sym, val.clone());
+            Ok(val)
         }
         "let*" => {
             assert_arg_len("let*", 2, list)?;

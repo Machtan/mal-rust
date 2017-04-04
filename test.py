@@ -67,15 +67,14 @@ def run_tests(tests, run_cmd):
         res = subprocess.run(cmd, stderr=PIPE, stdout=PIPE, universal_newlines=True)
         if res.returncode != 0:
             if not test.should_fail:
-                print("T) FAILED! (unexpected error)")
-                #print(res.stderr)
-                failed_cases.append("T")
+                # Even if the test 'errors' it's fine if the output is correct
+                # See step3_env.mal ';; Check that error aborts def!'
                 output = res.stdout.rstrip().splitlines()
-                #print("")
-                # Don't continue: show which cases passed and which one failed
+                # show which cases passed and which one failed
             else:
                 print("T) PASSED! (by raising an error as expected)")
                 print(res.stderr)
+                passed.append(test)
                 #print("")
                 continue
         else:
@@ -85,6 +84,9 @@ def run_tests(tests, run_cmd):
             #    print("  {}".format(line))
             #print("<end>")
             if len(output) != len(test.cases):
+                print("OUTPUT:")
+                for line in output:
+                    print("-> {}".format(line))
                 raise Exception("ERROR: Got {} lines of output, expected {}!".format(len(output), len(test.cases)))
         
         # Match each line with the expected output
@@ -104,12 +106,12 @@ def run_tests(tests, run_cmd):
             
             case_output = output[output_line]
             if case_output == case.expected_output:
-                print("{}PASSED! : {}".format(tag, inputstr))
+                print("{}PASSED! : {} -> {}".format(tag, inputstr, case_output))
             else:
                 print("{}FAILED! : {}".format(tag, inputstr))
                 print("    Input:    {!r}\n".format(inputstr))
                 print("    Expected: {!r}\n".format(case.expected_output))
-                print("    Got:      {!r}\n".format(res))
+                print("    Got:      {!r}\n".format(case_output))
                 failed_cases.append(case_no)
             
             output_line += 1
@@ -128,7 +130,7 @@ def print_results(passed, failed):
     
     def print_failure(specifier, failed_tests):
         t = "tests" if len(failed_tests) > 1 else "test"
-        print("{} {} {} failed".format(len(failed_tests), t, specifier))
+        print("{} {} {} failed".format(len(failed_tests), specifier, t))
         for failure in failed_tests:
             case_text = ", ".join(str(cn) for cn in failure.case_numbers)
             print("  - '{}' [ {} ]".format(failure.test.name, case_text))
@@ -196,7 +198,7 @@ def load_tests(step_name):
         elif line.startswith(";=>"):
             #print("{}: OUTPUT: {}".format(i+1, line))
             if case_input_lines:
-                output = line[3:]
+                output = line[3:].strip()
                 case = TestCase(case_input_lines.copy(), output)
                 cases.append(case)
                 case_input_lines.clear()

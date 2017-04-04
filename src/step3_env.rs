@@ -6,6 +6,7 @@ use mal::{Mal, Env, MalList};
 use std::io::{self, Write, BufRead};
 use std::env;
 use mal::errors::*;
+use std::iter;
 
 
 fn read(text: &str) -> mal::Result<Mal> {
@@ -56,7 +57,7 @@ fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
             let sym = list.pop_front()
                 .ok_or_else(|| Error::from("def!: missing arg 1 (symbol)"))
                 .and_then(|mal| {
-                    mal.symbol().chain_err(|| "def!: arg 1 must be a symbol")
+                    mal.symbol().chain_err(|| "def!: Invalid first argument")
                 })?;
             let mut val = list.pop_front()
                 .ok_or_else(|| Error::from("def! missing arg 2 (value)"))?;
@@ -110,10 +111,12 @@ fn print_err(e: &mal::Error) {
     use ::std::io::Write;
     let stderr = &mut ::std::io::stderr();
     let errmsg = "Error writing to stderr";
+    let indent = 2;
 
     writeln!(stderr, "error: {}", e).expect(errmsg);
 
-    for e in e.iter().skip(1) {
+    for (i, e) in e.iter().skip(1).enumerate() {
+        write!(stderr, "{}", iter::repeat(" ").take(indent + i * indent).collect::<String>()).expect(errmsg);
         writeln!(stderr, "caused by: {}", e).expect(errmsg);
     }
 

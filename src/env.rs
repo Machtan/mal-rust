@@ -23,10 +23,10 @@ impl Env {
         Env { map: HashMap::new(), history: Vec::new() }
     }
     
-    pub fn with_new_scope<F>(&mut self, mut func: F) where F: FnMut(&mut Env) {
+    pub fn with_new_scope<F, R>(&mut self, mut func: F) -> R where F: FnMut(&mut Env) -> R {
         use self::EnvChange::*;
         self.history.push(NewScopeEntered);
-        func(self);
+        let res = func(self);
         // Revert back to previous state.
         loop {
             match self.history.pop().expect("Broken env invariant!") {
@@ -39,6 +39,7 @@ impl Env {
                 }
             }
         }
+        res
     }
     
     pub fn get(&self, ident: &Symbol) -> Result<Mal> {
@@ -49,7 +50,7 @@ impl Env {
         }
     }
     
-    pub fn insert<K: Into<Symbol>, V: Into<Mal>>(&mut self, ident: K, value: V) {
+    pub fn set<K: Into<Symbol>, V: Into<Mal>>(&mut self, ident: K, value: V) {
         let symbol = ident.into();
         match self.map.insert(symbol.clone(), value.into()) {
             None => self.history.push(EnvChange::BindingAdded(symbol)),

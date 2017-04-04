@@ -1,8 +1,11 @@
 extern crate mal;
+#[macro_use]
+extern crate error_chain;
 
 use mal::{Mal, Env, MalList};
 use std::io::{self, Write, BufRead};
 use std::env;
+use mal::errors::*;
 
 
 fn read(text: &str) -> mal::Result<Mal> {
@@ -47,11 +50,31 @@ fn eval_list(list: &mut MalList, env: &mut Env) -> mal::Result<()> {
 }
 
 fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
-    //let first = list.pop_front().unwrap().symbol()?;
-    
-    eval_list(list, env)?;
-    let first = list.pop_front().unwrap();
-    first.call(list)
+    let first = list.pop_front().unwrap().symbol()?;
+    match first.text() {
+        "def!" => {
+            let sym = list.pop_front()
+                .ok_or_else(|| Error::from("def!: missing arg 1 (symbol)"))
+                .and_then(|mal| {
+                    mal.symbol().chain_err(|| "def!: arg 1 must be a symbol")
+                })?;
+            let mut val = list.pop_front()
+                .ok_or_else(|| Error::from("def! missing arg 2 (value)"))?;
+            eval(&mut val, env)?;
+            if ! list.is_empty() {
+                bail!("def!: called with more than 2 args!");
+            }
+            env.set(sym, val);
+            Ok(Mal::Nil)
+        }
+        _ => {
+            let func = env.get(&first)?;
+            env.with_new_scope(|env| {
+                eval_list(list, env)
+            })?;
+            func.call(list)
+        }
+    }
 }
 
 /// Evaluates list forms.

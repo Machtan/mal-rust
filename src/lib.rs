@@ -9,7 +9,7 @@ pub mod macros;
 pub mod reader;
 pub mod printer;
 
-mod errors {
+pub mod errors {
     fn linepos(src: &str, pos: usize) -> (usize, usize) {
         let mut line_start = 0;
         let mut lineno = 1;

@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 from subprocess import PIPE
+from collections import namedtuple
 
 def LOCAL(*path):
     return os.path.join(os.path.dirname(__file__), *path)
@@ -12,6 +13,7 @@ STEPS = {
     "step0": "step0_repl",
     "step1": "step1_read_print",
     "step2": "step2_eval",
+    "step3": "step3_env",
 }
 
 def get_step(step: str) -> str:
@@ -21,11 +23,13 @@ def get_step(step: str) -> str:
     return step_name
 
 
+Test = namedtuple("Test", ["name", "cases", "type"])
+TestCase = namedtuple("TestCase", ["input_lines", "expected_output", "should_fail"])
+
 class TestType:
     Mandatory = "Mandatory"
     Deferred = "Deferred"
     Optional = "Optional"
-    ShouldFail = "ShouldFail"
 
 
 def build_rust(step_name):
@@ -112,13 +116,26 @@ def load_tests(step_name):
     with open(filepath, "r") as f:
         text = f.read()
     
-    testtype = TestType.Mandatory
     tests = []
-    curtest = []
+    test_type = TestType.Mandatory
+    
+    test_name = "NO TEST NAME"
+    cases = []
+    case_input_lines = []
+    def start_new_test(lineno):
+        if cases:
+            if case_input_lines:
+                raise Exception("Line {}: New test start, but no output for previous test case")
+            test = Test(test_name, cases.copy(), test_type)
+            tests.append(test)
+            cases.clear()
+        
+        
     for i, line in enumerate(text.splitlines()):
         line = line.strip()
         if line.startswith(";;"):
-            continue
+            start_new_test(i+1)
+            test_name = line[2:].strip()
         
         if line == "" or line.isspace():
             continue
@@ -126,60 +143,92 @@ def load_tests(step_name):
         if line.startswith(";>>>"):
             ll = line.lower()
             if "optional" in ll:
-                testtype = TestType.Optional
+                test_type = TestType.Optional
             elif "deferrable" in ll:
-                testtype = TestType.Deferred
+                test_type = TestType.Deferred
             else:
                 raise Exception("Line {}: Unknown parse directive: {!r}", i+1, line)
         
         elif line.startswith(";=>"):
             #print("{}: OUTPUT: {}".format(i+1, line))
-            if curtest:
+            if case_input_lines:
                 output = line[3:]
-                tests.append((curtest[0], output, testtype))
-                curtest.clear()
+                case = TestCase(case_input_lines.copy(), output, False)
+                cases.append(case)
+                case_input_lines.clear()
             else:
                 raise Exception("Line {}: Found output line with no input".format(i+1))
         
         elif line.startswith("; expected"):
-            if not curtest:
+            if not case_input_lines:
                 raise Exception("Line {}: Found output line with no input".format(i+1))
-            tests.append((curtest[0], "", TestType.ShouldFail))
-            curtest.clear()
+            case = TestCase(case_input_lines.copy(), "", True)
+            cases.append(case)
+            case_input_lines.clear()
         
         elif line.startswith(";"):
             if "not found" in line:
-                if not curtest:
+                if not case_input_lines:
                     raise Exception("Line {}: Found output line with no input".format(i+1))
-                tests.append((curtest[0], "", TestType.ShouldFail))
-                curtest.clear()
+                case = TestCase(case_input_lines.copy(), "", True)
+                cases.append(case)
+                case_input_lines.clear()
             
             continue
         
         else:
             #print("{}: INPUT: {}".format(i+1, line))
-            if not curtest:
-                curtest.append(line)
+            if not case_input_lines:
+                case_input_lines.append(line)
             else:
-                raise Exception("Line {}: Found second input line in a row".format(i+1))
+                case_input_lines.append(line)
+                print("WARN: Line {}: Found second input line in a row".format(i+1))
     
-    if curtest:
+    if case_input_lines:
         raise Exception("END: No output found for last input line")
+    
+    start_new_test(i+1)
     
     return tests
 
 
+def print_tests(tests):
+    print("Tests:")
+    for test in tests:
+        print("TEST: {} ({})".format(test.name, test.type))
+        print("")
+        maxw = len(str(len(test.cases)))
+        tag = "{{:<{}}}".format(maxw)
+        for i, case in enumerate(test.cases, 1):
+            itag = tag.format(i)
+            ptag = tag.format(" ")
+            #print(itag)
+            for j, input_line in enumerate(case.input_lines):
+                if j == 0:
+                    prefix = itag
+                else:
+                    prefix = itag
+                print("{}| user> {}".format(prefix, input_line))
+
+            output = "<Error>" if case.should_fail else "-> " + case.expected_output
+            print("{}| {}".format(itag, output))
+            print("")
+            #print("-"*(maxw+1))
+        
+    
 
 def main(args=sys.argv[1:]):
     if not args:
         return print("Usage: python3 test.py <step>")
-    
+    from pprint import pprint
     step_name = get_step(args[0])
     tests = load_tests(step_name)
-    build_rust(step_name)
-    cmd = rust_cmd(step_name)
-    (passed, manfail, deffail, optfail) = run_tests(tests, cmd)
-    print_results(passed, manfail, deffail, optfail)
+    print_tests(tests)
+    
+    #build_rust(step_name)
+    #cmd = rust_cmd(step_name)
+    #(passed, manfail, deffail, optfail) = run_tests(tests, cmd)
+    #print_results(passed, manfail, deffail, optfail)
 
 
 if __name__ == '__main__':

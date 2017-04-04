@@ -28,7 +28,7 @@ TestCase = namedtuple("TestCase", ["input_lines", "expected_output"])
 
 class TestType:
     Mandatory = "Mandatory"
-    Deferred = "Deferred"
+    Deferrable = "Deferrable"
     Optional = "Optional"
 
 
@@ -42,13 +42,13 @@ def rust_cmd(step_name):
     return [EXEPATH]
 
 
-TestFailure = namedtuple("TestFailure", ["test", "case_no"])
+TestFailure = namedtuple("TestFailure", ["test", "case_numbers"])
 
 def run_tests(tests, run_cmd):
     passed = []
     failed = {
         TestType.Mandatory: [],
-        TestType.Deferred: [],
+        TestType.Deferrable: [],
         TestType.Optional: [],
     }
     print("Running {} tests...".format(len(tests)))
@@ -57,7 +57,7 @@ def run_tests(tests, run_cmd):
         failtext = " <Should fail> " if test.should_fail else ""
         print(" {} ({}){} ".format(test.name, test.type, failtext).center(80, "="))
         print("")
-        test_has_failed = False
+        failed_cases = []
         
         # Run the exe with all the input lines
         cmd = run_cmd.copy()
@@ -67,16 +67,16 @@ def run_tests(tests, run_cmd):
         res = subprocess.run(cmd, stderr=PIPE, stdout=PIPE, universal_newlines=True)
         if res.returncode != 0:
             if not test.should_fail:
-                print("0) ERROR!")
-                print(res.stderr)
-                failed[test.type].append(TestFailure(test.name, 0))
-                test_has_failed = True
-                print("")
-                continue
+                print("T) FAILED! (unexpected error)")
+                #print(res.stderr)
+                failed_cases.append("T")
+                output = res.stdout.rstrip().splitlines()
+                #print("")
+                # Don't continue: show which cases passed and which one failed
             else:
-                print("0) PASSED! (by raising an error as expected)")
+                print("T) PASSED! (by raising an error as expected)")
                 print(res.stderr)
-                print("")
+                #print("")
                 continue
         else:
             output = res.stdout.rstrip().splitlines() # strip to remove newline
@@ -94,22 +94,29 @@ def run_tests(tests, run_cmd):
         for case_no, case in enumerate(test.cases, 1):
             tag = tag_template.format(case_no)
             cmd = run_cmd + case.input_lines
-            inputstr = "\\n".join(case.input_lines) 
+            inputstr = " <newline> ".join(case.input_lines) 
             
-            res = output[output_line]
-            if res == case.expected_output:
+            if output_line >= len(output):
+                print("{}ERROR!  : {}".format(tag, inputstr))
+                print(res.stderr)
+                failed_cases.append(case_no)
+                break
+            
+            case_output = output[output_line]
+            if case_output == case.expected_output:
                 print("{}PASSED! : {}".format(tag, inputstr))
             else:
                 print("{}FAILED! : {}".format(tag, inputstr))
                 print("    Input:    {!r}\n".format(inputstr))
                 print("    Expected: {!r}\n".format(case.expected_output))
                 print("    Got:      {!r}\n".format(res))
-                failed[test.type].append(TestFailure(test.name, case_no))
-                test_has_failed = True
+                failed_cases.append(case_no)
             
             output_line += 1
-            
-        if not test_has_failed:
+        
+        if failed_cases:
+            failed[test.type].append(TestFailure(test, failed_cases))
+        else:
             passed.append(test)
         
         print("")
@@ -117,26 +124,30 @@ def run_tests(tests, run_cmd):
     return (passed, failed)
 
 
-def print_results(passed, mandatory_failed, deferrable_failed, optional_failed):
-    def fail_text(name, faillist):
-        if faillist:
-            text = " [{}]".format(", ".join(str(i) for i in faillist))
-        else:
-            text = ""
-        return "  {} {} tests failed {}".format(len(faillist), name, text)
+def print_results(passed, failed):
     
-    verdict = "SUCCES" if not mandatory_failed else "FAILURE"
-    if not mandatory_failed and not deferrable_failed and not optional_failed:
+    def print_failure(specifier, failed_tests):
+        t = "tests" if len(failed_tests) > 1 else "test"
+        print("{} {} {} failed".format(len(failed_tests), t, specifier))
+        for failure in failed_tests:
+            case_text = ", ".join(str(cn) for cn in failure.case_numbers)
+            print("  - '{}' [ {} ]".format(failure.test.name, case_text))
+        print("")
+    
+    verdict = "SUCCES" if not failed[TestType.Mandatory] else "FAILURE"
+    if all(not tests for tests in failed.values()):
         verdict = "PERFECT"
     
     print("")
-    print("Results:")
-    print("  {} tests passed".format(len(passed)))
-    print(fail_text("mandatory", mandatory_failed))
-    print(fail_text("deferrable", deferrable_failed))
-    print(fail_text("optional", optional_failed))
+    print(" Test Results ".center(80, "="))
+    t = "tests" if len(passed) > 1 else "test"
+    print("{} {} passed\n".format(len(passed), t))
+    print_failure("mandatory", failed[TestType.Mandatory])
+    print_failure("deferrable", failed[TestType.Deferrable])
+    print_failure("optional", failed[TestType.Optional])
     print("")
     print("Verdict: {}!".format(verdict))
+    print("")
     
             
 
@@ -151,7 +162,7 @@ def load_tests(step_name):
     test_type = TestType.Mandatory
     test_should_fail = False
     
-    test_name = "NO TEST NAME"
+    test_name = "<Unnamed Test>"
     cases = []
     case_input_lines = []
     def start_new_test(lineno):
@@ -178,7 +189,7 @@ def load_tests(step_name):
             if "optional" in ll:
                 test_type = TestType.Optional
             elif "deferrable" in ll:
-                test_type = TestType.Deferred
+                test_type = TestType.Deferrable
             else:
                 raise Exception("Line {}: Unknown parse directive: {!r}", i+1, line)
         
@@ -264,7 +275,7 @@ def main(args=sys.argv[1:]):
     build_rust(step_name)
     cmd = rust_cmd(step_name)
     (passed, failed) = run_tests(tests, cmd)
-    #print_results(passed, manfail, deffail, optfail)
+    print_results(passed, failed)
 
 
 if __name__ == '__main__':

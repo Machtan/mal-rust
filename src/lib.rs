@@ -14,13 +14,13 @@ pub mod errors {
         let mut line_start = 0;
         let mut lineno = 1;
         for (i, ch) in src.char_indices() {
-            if ch == '\n' {
-                line_start = i + 1;
-                lineno += 1;
-            }
             if i == pos {
                 let col = (&src[line_start..pos]).chars().count() + 1;
                 return (lineno, col);
+            }
+            if ch == '\n' {
+                line_start = i + 1;
+                lineno += 1;
             }
         }
         let col = (&src[line_start..]).chars().count() + 1;
@@ -28,6 +28,7 @@ pub mod errors {
     }
     
     fn linepos_str(src: &str, pos: usize) -> String {
+        //println!("linepos_str(src: {:?}, pos: {})", src, pos);
         let (line, col) = linepos(src, pos);
         format!("{}:{}", line, col)
     }
@@ -35,7 +36,10 @@ pub mod errors {
     error_chain! {
         errors {
             Lexer { pos: usize, source: String, msg: String } {
-                display("Lexer error: {}| {}", linepos_str(&source, *pos), msg)
+                display("Lexer: {}| {}", linepos_str(&source, *pos), msg)
+            }
+            Reader { pos: usize, source: String, msg: String } {
+                display("Reader: {}| {}", linepos_str(&source, *pos), msg)
             }
             TypeError { expected: String, got: String } {
                 display("Type error: Expected {}, got {}", expected, got)
@@ -45,7 +49,7 @@ pub mod errors {
 }
 
 pub use errors::*;
-pub use types::{Mal, MalList, MalArr, MalMap, Keyword, Symbol};
+pub use types::{Mal, MalList, MalArr, MalMap, Keyword, Symbol, MalFunc};
 pub use env::Env;
 pub use reader::read_str;
 pub use printer::pr_str;

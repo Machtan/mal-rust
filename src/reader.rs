@@ -373,6 +373,12 @@ pub fn read_form(lexer: &mut Lexer) -> Result<Mal> {
             let target = read_form(lexer)?;
             list!["with-meta", target, meta].into()
         }
-        other => panic!("Unsuported token: {:?}", other),
+        other => {
+            return Err(ErrorKind::Reader {
+                pos: token.start,
+                source: String::from(lexer.text),
+                msg: format!("Unexpected token: {:?}", other)
+            }.into());
+        }
     })
 }

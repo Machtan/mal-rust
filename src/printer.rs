@@ -42,9 +42,32 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
         Str(ref s) => {
             pr_malstr_into(s, string, print_readably);
         }
+        Boxed(ref inner) => {
+            pr_str_into(inner, string, print_readably);
+        }
         Fn(ref f) => {
             match *f {
                 MalFunc::Native(name, _) => string.push_str(name),
+                MalFunc::Defined(ref args, ref body) => {
+                    if ! print_readably {
+                        string.push('#');
+                    } else {
+                        string.push_str("(fn* (");
+                        let len = args.len();
+                        if len != 0 {
+                            let last = len - 1;
+                            for (i, sym) in args.iter().enumerate() {
+                                string.push_str(sym.text());
+                                if i != last {
+                                    string.push(' ');
+                                }
+                            }
+                        }
+                        string.push_str(") ");
+                        pr_str_into(body, string, print_readably);
+                        string.push(')');
+                    }
+                }
             }
         }
         List(ref list) => {

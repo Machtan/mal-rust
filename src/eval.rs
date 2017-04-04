@@ -1,5 +1,6 @@
-use mal::{self, Mal, MalList, Env};
+use mal::{self, Mal, MalList, Env, MalFunc, Symbol};
 use mal::errors::*;
+use std::collections::VecDeque;
 
 /// Resolves symbols to their environment values.
 fn eval_ast(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
@@ -47,6 +48,9 @@ pub fn eval(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
                 new_val = Some(apply(list, env)?);
             }
         }
+        Mal::Boxed(ref mut inner) => {
+            eval(inner, env)?;
+        }
         _ => eval_ast(expr, env)?,
     }
     if let Some(val) = new_val {
@@ -62,9 +66,23 @@ fn assert_arg_len(name: &str, nargs: usize, args: &MalList) -> mal::Result<()> {
     Ok(())
 }
 
+/// Evaluates the expression inside the given list.
 fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
-    let first = list.pop_front().unwrap().symbol()?;
-    match first.text() {
+    let mut first = list.pop_front().unwrap();
+    match first {
+        Mal::Sym(sym) => {
+            apply_symbol(sym, list, env)
+        }
+        _ => {
+            apply_function(&mut first, list, env)
+        }
+    }
+}
+
+/// Resolves a list starting with a symbol to either a special form,
+/// or a function that is called.
+fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
+    match symbol.text() {
         "def!" => {
             assert_arg_len("def!", 2, list)?;
             let sym = list.pop_front().unwrap().symbol()
@@ -96,12 +114,52 @@ fn apply(list: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
                 Ok(expr)
             })
         }
+        "fn*" => {
+            assert_arg_len("fn*", 2, list)?;
+            let mut args = list.pop_front().unwrap();
+            let arg_ref = args.as_list_or_array()
+                .chain_err(|| "fn*: Invalid argument list")?;
+            let mut arg_list = VecDeque::new();
+            while ! arg_ref.is_empty() {
+                arg_list.push_back(
+                    arg_ref.pop_front().unwrap().symbol()
+                        .chain_err(|| "fn*: Invalid argument list")?
+                );
+            }
+            let body = list.pop_front().unwrap();
+            Ok(Mal::Fn(MalFunc::Defined(arg_list, Box::new(body))))
+        }
         _ => {
-            let func = env.get(&first)?;
+            let mut func = env.get(&symbol)?;
+            apply_function(&mut func, list, env)
+        }
+    }
+}
+
+/// Resolves the given value to a function and calls it.
+fn apply_function(func: &mut Mal, args: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
+    eval(func, env)?;
+    let function = func.as_function()?;
+    env.with_new_scope(|env| {
+        eval_list(args, env)
+    })?;
+    match *function {
+        MalFunc::Defined(ref arg_names, ref body) => {
+            assert_arg_len("#<function>", arg_names.len(), args)?;
+            // Clone the body to let eval modify it.
+            let mut body: Mal = (**body).clone();
             env.with_new_scope(|env| {
-                eval_list(list, env)
+                for name in arg_names.iter() {
+                    let symbol = name.clone();
+                    let value = args.pop_front().unwrap();
+                    env.set(symbol, value);
+                }
+                eval(&mut body, env)
             })?;
-            func.call(list)
+            Ok(body)
+        }
+        MalFunc::Native(_, ref mut func) => {
+            func(args)
         }
     }
 }

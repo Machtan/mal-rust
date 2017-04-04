@@ -16,6 +16,7 @@ pub enum Mal {
     Map(MalMap),
     Fn(MalFunc),
     Nil,
+    Boxed(Box<Mal>),
 }
 impl Mal {
     pub fn type_name(&self) -> &'static str {
@@ -31,6 +32,7 @@ impl Mal {
             Map(_) => "hashmap",
             Fn(_) => "function",
             Nil => "nil",
+            Boxed(ref inner) => inner.type_name(),
          }
     }
     
@@ -56,6 +58,13 @@ impl Mal {
         }
     }
     
+    pub fn as_function(&mut self) -> Result<&mut MalFunc> {
+        match *self {
+            Mal::Fn(ref mut func) => Ok(func),
+            ref other => self.conv_err("function", other),
+        }
+    }
+    
     pub fn list(self) -> Result<MalList> {
         match self {
             Mal::List(list) => Ok(list),
@@ -67,13 +76,6 @@ impl Mal {
         match self {
             Mal::Sym(symbol) => Ok(symbol),
             ref other => self.conv_err("symbol", other),
-        }
-    }
-    
-    pub fn call(&self, args: &MalList) -> Result<Mal> {
-        match *self {
-            Mal::Fn(MalFunc::Native(_, func)) => func(args),
-            ref other => bail!("Attempted to call value of type '{}'", other.type_name()),
         }
     }
 }
@@ -259,6 +261,7 @@ pub type NativeFunc = fn(&MalList) -> Result<Mal>;
 
 pub enum MalFunc {
     Native(&'static str, NativeFunc),
+    Defined(VecDeque<Symbol>, Box<Mal>),
 }
 
 impl fmt::Debug for MalFunc {
@@ -266,7 +269,10 @@ impl fmt::Debug for MalFunc {
         use self::MalFunc::*;
         match *self {
             Native(name, _) => {
-                write!(f, "MalFunc {{ native \"{}\" }}", name)
+                write!(f, "MalFunc::Native {{ \"{}\" }}", name)
+            }
+            Defined(ref args, ref body) => {
+                write!(f, "MalFunc::Defined({:?}){{ {:?} }}", args, body)
             }
         }
     }
@@ -277,6 +283,9 @@ impl clone::Clone for MalFunc {
         match *self {
             MalFunc::Native(name, func) => {
                 MalFunc::Native(name, func)
+            }
+            MalFunc::Defined(ref args, ref body) => {
+                MalFunc::Defined(args.clone(), body.clone())
             }
         }
     }

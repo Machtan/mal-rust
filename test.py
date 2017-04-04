@@ -23,8 +23,8 @@ def get_step(step: str) -> str:
     return step_name
 
 
-Test = namedtuple("Test", ["name", "cases", "type"])
-TestCase = namedtuple("TestCase", ["input_lines", "expected_output", "should_fail"])
+Test = namedtuple("Test", ["name", "cases", "type", "should_fail"])
+TestCase = namedtuple("TestCase", ["input_lines", "expected_output"])
 
 class TestType:
     Mandatory = "Mandatory"
@@ -42,48 +42,79 @@ def rust_cmd(step_name):
     return [EXEPATH]
 
 
+TestFailure = namedtuple("TestFailure", ["test", "case_no"])
+
 def run_tests(tests, run_cmd):
     passed = []
-    mandatory_failed = []
-    deferrable_failed = []
-    optional_failed = []
-    
+    failed = {
+        TestType.Mandatory: [],
+        TestType.Deferred: [],
+        TestType.Optional: [],
+    }
+    print("Running {} tests...".format(len(tests)))
+    print("")
     for i, test in enumerate(tests):
-        (test_input, expected_output, testtype) = test
-        cmd = run_cmd + [test_input]
-        res = subprocess.run(cmd, stderr=PIPE, stdout=PIPE, universal_newlines=True)
+        failtext = " <Should fail> " if test.should_fail else ""
+        print(" {} ({}){} ".format(test.name, test.type, failtext).center(80, "="))
+        print("")
+        test_has_failed = False
         
+        # Run the exe with all the input lines
+        cmd = run_cmd.copy()
+        for case in test.cases:
+            cmd.extend(case.input_lines)
+        
+        res = subprocess.run(cmd, stderr=PIPE, stdout=PIPE, universal_newlines=True)
         if res.returncode != 0:
-            if testtype != TestType.ShouldFail:
-                print("{} ): ERROR! : {}".format(i, test_input))
-                print("==== Error output ====\n{}".format(res.stderr))
-                if testtype == TestType.Mandatory:
-                    mandatory_failed.append(i)
-                elif testtype == TestType.Deferred:
-                    deferrable_failed.append(i)
-                elif testtype == TestType.Optional:
-                    optional_failed.append(i)
+            if not test.should_fail:
+                print("0) ERROR!")
+                print(res.stderr)
+                failed[test.type].append(TestFailure(test.name, 0))
+                test_has_failed = True
+                print("")
+                continue
             else:
-                print("{} ): PASSED! (by failing) : {!r}".format(i, test_input))
+                print("0) PASSED! (by raising an error as expected)")
+                print(res.stderr)
+                print("")
+                continue
         else:
-            output = res.stdout.rstrip() # strip to remove newline
-            #print("Stdout: {!r}".format(output))
-            if output == expected_output:
-                print("{} ): PASSED! : {}".format(i, test_input))
-                passed.append(i)
+            output = res.stdout.rstrip().splitlines() # strip to remove newline
+            #print("OUTPUT:")
+            #for line in output:
+            #    print("  {}".format(line))
+            #print("<end>")
+            if len(output) != len(test.cases):
+                raise Exception("ERROR: Got {} lines of output, expected {}!".format(len(output), len(test.cases)))
+        
+        # Match each line with the expected output
+        maxw = len(str(len(test.cases)))
+        tag_template = "{{:<{}}}) ".format(maxw)
+        output_line = 0
+        for case_no, case in enumerate(test.cases, 1):
+            tag = tag_template.format(case_no)
+            cmd = run_cmd + case.input_lines
+            inputstr = "\\n".join(case.input_lines) 
+            
+            res = output[output_line]
+            if res == case.expected_output:
+                print("{}PASSED! : {}".format(tag, inputstr))
             else:
-                print("{} ): FAILED! : {}".format(i, test_input))
-                print("Input:    {!r}\n".format(test_input))
-                print("Expected: {!r}\n".format(expected_output))
-                print("Got:      {!r}\n".format(output))
-                if testtype == TestType.Mandatory:
-                    mandatory_failed.append(i)
-                elif testtype == TestType.Deferred:
-                    deferrable_failed.append(i)
-                elif testtype == TestType.Optional:
-                    optional_failed.append(i)
+                print("{}FAILED! : {}".format(tag, inputstr))
+                print("    Input:    {!r}\n".format(inputstr))
+                print("    Expected: {!r}\n".format(case.expected_output))
+                print("    Got:      {!r}\n".format(res))
+                failed[test.type].append(TestFailure(test.name, case_no))
+                test_has_failed = True
+            
+            output_line += 1
+            
+        if not test_has_failed:
+            passed.append(test)
+        
+        print("")
     
-    return (passed, mandatory_failed, deferrable_failed, optional_failed)
+    return (passed, failed)
 
 
 def print_results(passed, mandatory_failed, deferrable_failed, optional_failed):
@@ -118,6 +149,7 @@ def load_tests(step_name):
     
     tests = []
     test_type = TestType.Mandatory
+    test_should_fail = False
     
     test_name = "NO TEST NAME"
     cases = []
@@ -126,7 +158,7 @@ def load_tests(step_name):
         if cases:
             if case_input_lines:
                 raise Exception("Line {}: New test start, but no output for previous test case")
-            test = Test(test_name, cases.copy(), test_type)
+            test = Test(test_name, cases.copy(), test_type, test_should_fail)
             tests.append(test)
             cases.clear()
         
@@ -136,6 +168,7 @@ def load_tests(step_name):
         if line.startswith(";;"):
             start_new_test(i+1)
             test_name = line[2:].strip()
+            test_should_fail = False
         
         if line == "" or line.isspace():
             continue
@@ -153,7 +186,7 @@ def load_tests(step_name):
             #print("{}: OUTPUT: {}".format(i+1, line))
             if case_input_lines:
                 output = line[3:]
-                case = TestCase(case_input_lines.copy(), output, False)
+                case = TestCase(case_input_lines.copy(), output)
                 cases.append(case)
                 case_input_lines.clear()
             else:
@@ -162,7 +195,8 @@ def load_tests(step_name):
         elif line.startswith("; expected"):
             if not case_input_lines:
                 raise Exception("Line {}: Found output line with no input".format(i+1))
-            case = TestCase(case_input_lines.copy(), "", True)
+            test_should_fail = True
+            case = TestCase(case_input_lines.copy(), "")
             cases.append(case)
             case_input_lines.clear()
         
@@ -170,7 +204,8 @@ def load_tests(step_name):
             if "not found" in line:
                 if not case_input_lines:
                     raise Exception("Line {}: Found output line with no input".format(i+1))
-                case = TestCase(case_input_lines.copy(), "", True)
+                test_should_fail = True
+                case = TestCase(case_input_lines.copy(), "")
                 cases.append(case)
                 case_input_lines.clear()
             
@@ -195,7 +230,8 @@ def load_tests(step_name):
 def print_tests(tests):
     print("Tests:")
     for test in tests:
-        print("TEST: {} ({})".format(test.name, test.type))
+        failtext = " <Should fail> " if test.should_fail else ""
+        print("TEST: {} ({}){}".format(test.name, test.type, failtext))
         print("")
         maxw = len(str(len(test.cases)))
         tag = "{{:<{}}}".format(maxw)
@@ -210,7 +246,7 @@ def print_tests(tests):
                     prefix = itag
                 print("{}| user> {}".format(prefix, input_line))
 
-            output = "<Error>" if case.should_fail else "-> " + case.expected_output
+            output = "<Error>" if test.should_fail else "-> " + case.expected_output
             print("{}| {}".format(itag, output))
             print("")
             #print("-"*(maxw+1))
@@ -223,11 +259,11 @@ def main(args=sys.argv[1:]):
     from pprint import pprint
     step_name = get_step(args[0])
     tests = load_tests(step_name)
-    print_tests(tests)
+    #print_tests(tests)
     
-    #build_rust(step_name)
-    #cmd = rust_cmd(step_name)
-    #(passed, manfail, deffail, optfail) = run_tests(tests, cmd)
+    build_rust(step_name)
+    cmd = rust_cmd(step_name)
+    (passed, failed) = run_tests(tests, cmd)
     #print_results(passed, manfail, deffail, optfail)
 
 

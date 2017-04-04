@@ -14,6 +14,7 @@ STEPS = {
     "step1": "step1_read_print",
     "step2": "step2_eval",
     "step3": "step3_env",
+    "step4": "step4_if_fn_do",
 }
 
 def get_step(step: str) -> str:

@@ -45,7 +45,7 @@ pub mod errors {
 }
 
 pub use errors::*;
-pub use types::{Mal, MalList, MalArr, MalMap, Keyword};
+pub use types::{Mal, MalList, MalArr, MalMap, Keyword, Symbol};
 pub use env::Env;
 pub use reader::read_str;
 pub use printer::pr_str;

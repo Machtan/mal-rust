@@ -347,23 +347,23 @@ pub fn read_form(lexer: &mut Lexer) -> Result<Mal> {
         }
         Apo => {
             let quoted = read_form(lexer)?;
-            list!["quote", quoted].into()
+            list_with_sym!["quote", quoted].into()
         }
         BackTick => {
             let quoted = read_form(lexer)?;
-            list!["quasiquote", quoted].into()
+            list_with_sym!["quasiquote", quoted].into()
         }
         Tilde => {
             let unquoted = read_form(lexer)?;
-            list!["unquote", unquoted].into()
+            list_with_sym!["unquote", unquoted].into()
         }
         Tadpole => {
             let unquoted = read_form(lexer)?;
-            list!["splice-unquote", unquoted].into()
+            list_with_sym!["splice-unquote", unquoted].into()
         }
         At => {
             let derefed = read_form(lexer)?;
-            list!["deref", derefed].into()
+            list_with_sym!["deref", derefed].into()
         }
         Str(string) => {
             Mal::Str(string)
@@ -371,7 +371,7 @@ pub fn read_form(lexer: &mut Lexer) -> Result<Mal> {
         Hat => {
             let meta = read_form(lexer)?;
             let target = read_form(lexer)?;
-            list!["with-meta", target, meta].into()
+            list_with_sym!["with-meta", target, meta].into()
         }
         other => {
             return Err(ErrorKind::Reader {

@@ -3,8 +3,9 @@ use std::ops;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::clone;
+use std::cmp;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Mal {
     List(MalList),
     Arr(MalArr),
@@ -86,19 +87,51 @@ impl Mal {
     }
 }
 
-impl<'a> From<&'a str> for Mal {
-    fn from(value: &'a str) -> Mal {
-        if value.starts_with(":") {
-            Mal::Kw(Keyword::new(&value[1..]))
-        } else {
-            Mal::Sym(Symbol::new(value))
-        }
-    }
-}
-
 impl From<Symbol> for Mal {
     fn from(value: Symbol) -> Mal {
         Mal::Sym(value)
+    }
+}
+
+impl From<bool> for Mal {
+    fn from(value: bool) -> Mal {
+        Mal::Bool(value)
+    }
+}
+
+impl From<f64> for Mal {
+    fn from(value: f64) -> Mal {
+        Mal::Num(value)
+    }
+}
+
+impl From<MalList> for Mal {
+    fn from(value: MalList) -> Mal {
+        Mal::List(value)
+    }
+}
+
+impl From<MalMap> for Mal {
+    fn from(value: MalMap) -> Mal {
+        Mal::Map(value)
+    }
+}
+
+impl From<MalArr> for Mal {
+    fn from(value: MalArr) -> Mal {
+        Mal::Arr(value)
+    }
+}
+
+impl From<String> for Mal {
+    fn from(value: String) -> Mal {
+        Mal::Str(value)
+    }
+}
+
+impl From<MalFunc> for Mal {
+    fn from(value: MalFunc) -> Mal {
+        Mal::Fn(value)
     }
 }
 
@@ -141,7 +174,7 @@ impl Keyword {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MalList {
     pub(crate) items: VecDeque<Mal>,
 }
@@ -154,12 +187,6 @@ impl MalList {
     #[inline]
     pub fn inner(&mut self) -> &mut VecDeque<Mal> {
         &mut self.items
-    }
-}
-
-impl From<MalList> for Mal {
-    fn from(value: MalList) -> Mal {
-        Mal::List(value)
     }
 }
 
@@ -177,7 +204,7 @@ impl ops::DerefMut for MalList {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MalArr {
     pub(crate) items: VecDeque<Mal>,
 }
@@ -191,12 +218,6 @@ impl MalArr {
     #[inline]
     pub fn inner(&mut self) -> &mut VecDeque<Mal> {
         &mut self.items
-    }
-}
-
-impl From<MalArr> for Mal {
-    fn from(value: MalArr) -> Mal {
-        Mal::Arr(value)
     }
 }
 
@@ -232,7 +253,7 @@ impl From<Keyword> for MapKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MalMap {
     pub(crate) inner: HashMap<MapKey, Mal>,
 }
@@ -246,12 +267,6 @@ impl MalMap {
     #[inline]
     pub fn insert<K: Into<MapKey>, V: Into<Mal>>(&mut self, key: K, value: V) -> Option<Mal> {
         self.inner.insert(key.into(), value.into())
-    }
-}
-
-impl From<MalMap> for Mal {
-    fn from(value: MalMap) -> Mal {
-        Mal::Map(value)
     }
 }
 
@@ -269,7 +284,7 @@ impl ops::DerefMut for MalMap {
     }
 }
 
-pub type NativeFunc = fn(&MalList) -> Result<Mal>;
+pub type NativeFunc = fn(&mut MalList) -> Result<Mal>;
 
 pub enum MalFunc {
     Native(&'static str, NativeFunc),
@@ -303,9 +318,18 @@ impl clone::Clone for MalFunc {
     }
 }
 
-impl From<MalFunc> for Mal {
-    fn from(value: MalFunc) -> Mal {
-        Mal::Fn(value)
+impl cmp::PartialEq for MalFunc {
+    fn eq(&self, other: &MalFunc) -> bool {
+        use self::MalFunc::*;
+        match (self, other) {
+            (&Native(name, _), &Native(oname, _)) => {
+                oname == name
+            }
+            (&Defined(ref args, ref body), &Defined(ref oargs, ref obody)) => {
+                oargs == args && obody == body
+            }
+            _ => false,
+        }
     }
 }
 

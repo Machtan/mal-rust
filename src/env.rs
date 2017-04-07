@@ -59,15 +59,6 @@ impl Env {
         }
     }
     
-    pub fn add_special_form(&mut self, name: &'static str) -> Result<()> {
-        let symbol = Symbol::new(name);
-        if self.map.contains_key(&symbol) {
-            bail!("Special form '{}' declared twice!", name);
-        }
-        self.map.insert(symbol.clone(), symbol.into());
-        Ok(())
-    }
-    
     pub fn add_native_func(&mut self, name: &'static str, func: NativeFunc) -> Result<()> {
         let symbol = Symbol::new(name);
         if self.map.contains_key(&symbol) {

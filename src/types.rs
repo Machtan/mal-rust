@@ -16,7 +16,6 @@ pub enum Mal {
     Map(MalMap),
     Fn(MalFunc),
     Nil,
-    Boxed(Box<Mal>),
 }
 impl Mal {
     pub fn type_name(&self) -> &'static str {
@@ -32,7 +31,6 @@ impl Mal {
             Map(_) => "hashmap",
             Fn(_) => "function",
             Nil => "nil",
-            Boxed(ref inner) => inner.type_name(),
          }
     }
     
@@ -78,6 +76,14 @@ impl Mal {
             ref other => self.conv_err("symbol", other),
         }
     }
+    
+    pub fn is_truesy(&self) -> bool {
+        match *self {
+            Mal::Nil => false,
+            Mal::Bool(false) => false,
+            _ => true,
+        }
+    }
 }
 
 impl<'a> From<&'a str> for Mal {
@@ -87,6 +93,12 @@ impl<'a> From<&'a str> for Mal {
         } else {
             Mal::Sym(Symbol::new(value))
         }
+    }
+}
+
+impl From<Symbol> for Mal {
+    fn from(value: Symbol) -> Mal {
+        Mal::Sym(value)
     }
 }
 

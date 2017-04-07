@@ -42,9 +42,6 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
         Str(ref s) => {
             pr_malstr_into(s, string, print_readably);
         }
-        Boxed(ref inner) => {
-            pr_str_into(inner, string, print_readably);
-        }
         Fn(ref f) => {
             match *f {
                 MalFunc::Native(name, _) => string.push_str(name),

@@ -42,6 +42,7 @@ impl Env {
         res
     }
     
+    /// Returns a clone of the value associated with the symbol in this environment.
     pub fn get(&self, ident: &Symbol) -> Result<Mal> {
         if let Some(mal) = self.map.get(ident) {
             Ok(mal.clone())
@@ -56,6 +57,15 @@ impl Env {
             None => self.history.push(EnvChange::BindingAdded(symbol)),
             Some(old_value) => self.history.push(EnvChange::BindingReplaced(symbol, old_value))
         }
+    }
+    
+    pub fn add_special_form(&mut self, name: &'static str) -> Result<()> {
+        let symbol = Symbol::new(name);
+        if self.map.contains_key(&symbol) {
+            bail!("Special form '{}' declared twice!", name);
+        }
+        self.map.insert(symbol.clone(), symbol.into());
+        Ok(())
     }
     
     pub fn add_native_func(&mut self, name: &'static str, func: NativeFunc) -> Result<()> {

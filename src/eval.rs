@@ -48,9 +48,6 @@ pub fn eval(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
                 new_val = Some(apply(list, env)?);
             }
         }
-        Mal::Boxed(ref mut inner) => {
-            eval(inner, env)?;
-        }
         _ => eval_ast(expr, env)?,
     }
     if let Some(val) = new_val {
@@ -128,6 +125,38 @@ fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Resul
             }
             let body = list.pop_front().unwrap();
             Ok(Mal::Fn(MalFunc::Defined(arg_list, Box::new(body))))
+        }
+        "do" => { // TODO: Is 'do' actually a new scope?
+            env.with_new_scope(|env| {
+                let mut res = Mal::Nil;
+                for arg in list.drain(..) {
+                    res = arg;
+                    eval(&mut res, env)?;
+                }
+                Ok(res)
+            })
+        }
+        "if" => {
+            if ! (list.len() == 2 || list.len() == 3) {
+                bail!("'if' takes 2 or 3 arguments, found {}", list.len());
+            }
+            let has_else = list.len() == 3;
+            let mut condition = list.pop_front().unwrap();
+            eval(&mut condition, env)?;
+            
+            let mut if_body = list.pop_front().unwrap();
+            if condition.is_truesy() {
+                eval(&mut if_body, env)?;
+                Ok(if_body)
+            } else {
+                if has_else {
+                    let mut else_body = list.pop_front().unwrap();
+                    eval(&mut else_body, env)?;
+                    Ok(else_body)
+                } else {
+                    Ok(Mal::Nil)
+                }
+            }
         }
         _ => {
             let mut func = env.get(&symbol)?;

@@ -130,18 +130,13 @@ fn lt(args: &mut MalList) -> Result<Mal> {
     Ok(true.into())
 }
 
+
 fn eq(args: &mut MalList) -> Result<Mal> {
     if args.len() < 2 {
         bail!("'=' takes 2 or more arguments, got {}", args.len());
     }
     let first = args.pop_front().unwrap();
-    while ! args.is_empty() {
-        let test = args.pop_front().unwrap();
-        if test != first {
-            return Ok(false.into());
-        }
-    }
-    Ok(true.into())
+    Ok(args.drain(..).all(|arg| arg == first).into())
 }
 
 fn assert_nargs(name: &str, nargs: usize, args: &MalList) -> Result<()> {

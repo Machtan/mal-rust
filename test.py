@@ -135,7 +135,7 @@ def run_tests(tests, run_cmd):
 def print_results(passed, failed):
     
     def print_failure(specifier, failed_tests):
-        t = "tests" if len(failed_tests) > 1 else "test"
+        t = "test" if len(failed_tests) == 1 else "tests"
         print("{} {} {} failed".format(len(failed_tests), specifier, t))
         for failure in failed_tests:
             case_text = ", ".join(str(cn) for cn in failure.case_numbers)
@@ -148,7 +148,7 @@ def print_results(passed, failed):
     
     print("")
     print(" Test Results ".center(80, "="))
-    t = "tests" if len(passed) > 1 else "test"
+    t = "test" if len(passed) == 1 else "tests"
     print("{} {} passed\n".format(len(passed), t))
     print_failure("mandatory", failed[TestType.Mandatory])
     print_failure("deferrable", failed[TestType.Deferrable])

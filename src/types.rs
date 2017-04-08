@@ -6,7 +6,7 @@ use std::clone;
 use std::cmp;
 use env::Env;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Mal {
     List(MalList),
     Arr(MalArr),
@@ -84,6 +84,27 @@ impl Mal {
             Mal::Nil => false,
             Mal::Bool(false) => false,
             _ => true,
+        }
+    }
+}
+impl cmp::PartialEq for Mal {
+    fn eq(&self, other: &Mal) -> bool {
+        use self::Mal::*;
+        match (self, other) {
+            (&List(ref list),    &Arr(ref arr)) => list.items == arr.items,
+            (&Arr(ref arr),      &List(ref list)) => arr.items == list.items,
+            
+            (&List(ref val), &List(ref oval)) => val == oval,
+            (&Arr(ref val),  &Arr(ref oval))  => val == oval,
+            (&Num(ref val),  &Num(ref oval))  => val == oval,
+            (&Sym(ref val),  &Sym(ref oval))  => val == oval,
+            (&Str(ref val),  &Str(ref oval))  => val == oval,
+            (&Bool(ref val), &Bool(ref oval)) => val == oval,
+            (&Kw(ref val),   &Kw(ref oval))   => val == oval,
+            (&Map(ref val),  &Map(ref oval))  => val == oval,
+            (&Fn(ref val),   &Fn(ref oval))   => val == oval,
+            (&Nil, &Nil) => true,
+            _ => false
         }
     }
 }

@@ -1,6 +1,6 @@
 use types::{Mal, MalList};
 use env::Env;
-use printer::pr_str;
+use printer;
 use errors::*;
 
 /// Returns the core environment.
@@ -21,7 +21,21 @@ pub fn core_env() -> Env {
     env.add_native_func("<=", le).unwrap();
     env.add_native_func(">", gt).unwrap();
     env.add_native_func(">=", ge).unwrap();
+    env.add_native_func("pr-str", pr_str).unwrap();
     env
+}
+
+fn pr_str(args: &mut MalList) -> Result<Mal> {
+    if args.is_empty() {
+        return Ok(String::from("").into());
+    }
+    let first = args.pop_front().unwrap();
+    let mut string = printer::pr_str(&first, true);
+    for arg in args.drain(..) {
+        string.push(' ');
+        printer::pr_str_into(&arg, &mut string, true);
+    }
+    Ok(string.into())
 }
 
 fn ge(args: &mut MalList) -> Result<Mal> {
@@ -145,7 +159,7 @@ fn list(args: &mut MalList) -> Result<Mal> {
 fn prn(args: &mut MalList) -> Result<Mal> {
     assert_nargs("pr_str", 1, args)?;
     let arg = args.pop_front().unwrap();
-    let string = pr_str(&arg, true);
+    let string = printer::pr_str(&arg, true);
     println!("{}", string);
     Ok(Mal::Nil)
 }

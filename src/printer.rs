@@ -27,7 +27,7 @@ fn pr_malstr_into(s: &str, string: &mut String, print_readably: bool) {
     }
 }
 
-fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
+pub fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
     use types::Mal::*;
     match *mal {
         Num(num) => write!(string, "{}", num).unwrap(),

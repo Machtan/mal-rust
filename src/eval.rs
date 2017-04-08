@@ -128,11 +128,26 @@ fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Resul
             let arg_ref = args.as_list_or_array()
                 .chain_err(|| "fn*: Invalid argument list")?;
             let mut arg_list = VecDeque::new();
-            while ! arg_ref.is_empty() {
-                arg_list.push_back(
-                    arg_ref.pop_front().unwrap().symbol()
-                        .chain_err(|| "fn*: Invalid argument list")?
-                );
+            let mut next_is_vararg = false;
+            let mut has_vararg = false;
+            for arg in arg_ref.drain(..) {
+                let sym = arg.symbol().chain_err(|| "fn*: Invalid argument list")?;
+                if sym.text() == "&" {
+                    if has_vararg {
+                        bail!("fn*: & (vararg operator) used twice!");
+                    } else {
+                        has_vararg = true;
+                        next_is_vararg = true;
+                    }
+                } else {
+                    if next_is_vararg {
+                        next_is_vararg = false;
+                    } else if has_vararg {
+                        bail!("fn*: Got more than one argument after '&'");
+                    }
+                }
+                arg_list.push_back(sym);
+
             }
             let body = list.pop_front().unwrap();
             Ok(Mal::Fn(MalFunc::Closure(arg_list, env.clone(), Box::new(body))))
@@ -186,14 +201,14 @@ fn apply_function(func: &mut Mal, args: &mut MalList, env: &mut Env) -> mal::Res
     match *function {
         // NOTE: This should've been cloned at env.get, so safe to modify.
         Closure(ref mut arg_names, ref mut closure_env, ref mut body) => {
-            apply_closure(arg_names, args, closure_env, body)
+            apply_closure(None, arg_names, args, closure_env, body)
         }
         NamedClosure(ref mut name, ref mut arg_names, 
                 ref mut closure_env, ref mut body) => {
             let self_reference = NamedClosure(name.clone(), arg_names.clone(), 
                 closure_env.clone(), body.clone());
             closure_env.set(name.clone(), self_reference);
-            apply_closure(arg_names, args, closure_env, body)
+            apply_closure(Some(name.text()), arg_names, args, closure_env, body)
         }
         Native(_, ref mut func) => {
             func(args)
@@ -201,14 +216,35 @@ fn apply_function(func: &mut Mal, args: &mut MalList, env: &mut Env) -> mal::Res
     }
 }
 
-fn apply_closure(arg_names: &mut VecDeque<Symbol>, args: &mut MalList, 
+fn apply_closure(name: Option<&str>, arg_names: &mut VecDeque<Symbol>, args: &mut MalList, 
         closure_env: &mut Env, body: &mut Mal) -> mal::Result<Mal> {
-    assert_arg_len("#<function>", arg_names.len(), args)?;
+    
+    let takes_varargs = arg_names.iter().any(|arg| arg.text() == "&");
+    if ! takes_varargs {
+        assert_arg_len(name.unwrap_or("#<function>"), arg_names.len(), args)?;
+    } else {
+        let nargs = arg_names.len() - 2;
+        if args.len() < nargs {
+            bail!("'{}' takes {} or more arguments, found {}!", 
+                name.unwrap_or("#<function>"), nargs, args.len());
+        }
+    }
+    
     // Bind the arguments in the closure env.
+    let mut is_vararg = false;
     for name in arg_names.drain(..) {
         let symbol = name.clone();
-        let value = args.pop_front().unwrap();
-        closure_env.set(symbol, value);
+        if symbol.text() == "&" {
+            is_vararg = true;
+            continue;
+        }
+        if ! is_vararg {
+            let value = args.pop_front().unwrap();
+            closure_env.set(symbol, value);
+        } else {
+            closure_env.set(symbol, args.clone());
+            args.clear();
+        }
     }
 
     eval(body, closure_env)?;

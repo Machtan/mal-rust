@@ -9,20 +9,24 @@ fn eval_ast(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
     match *expr {
         Sym(ref ident) => {
             new_val = Some(env.get(&ident)?);
-            
         },
-        List(ref mut list) => {
-            eval_list(list, env)?;
-        }
         Arr(ref mut arr) => {
             for item in arr.iter_mut() {
-                eval(item, env)?;
+                env.with_new_scope(|env| {
+                    eval(item, env)
+                })?;
             }
         }
         Map(ref mut map) => {
             for (_, item) in map.iter_mut() {
-                eval(item, env)?;
+                env.with_new_scope(|env| {
+                    eval(item, env)
+                })?;
             }
+        }
+        List(_) => {
+            unreachable!();
+            //eval_list(list, env)?;
         }
         _ => {},
     }
@@ -34,7 +38,10 @@ fn eval_ast(expr: &mut Mal, env: &mut Env) -> mal::Result<()> {
 
 fn eval_list(list: &mut MalList, env: &mut Env) -> mal::Result<()> {
     for item in list.iter_mut() {
-        eval(item, env)?;
+        // List members should not share definitions.
+        env.with_new_scope(|env| {
+            eval(item, env)
+        })?;
     }
     Ok(())
 }
@@ -86,6 +93,10 @@ fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Resul
                 .chain_err(|| "def!: Invalid first argument")?;
             let mut val = list.pop_front().unwrap();
             eval(&mut val, env)?;
+            // Make closures 'specially' able to refer to what they're bound to.
+            if let Mal::Fn(MalFunc::Closure(args, env, body)) = val {
+                val = MalFunc::NamedClosure(sym.clone(), args, env, body).into();
+            }
             env.set(sym, val.clone());
             Ok(val)
         }
@@ -124,9 +135,9 @@ fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Resul
                 );
             }
             let body = list.pop_front().unwrap();
-            Ok(Mal::Fn(MalFunc::Defined(arg_list, Box::new(body))))
+            Ok(Mal::Fn(MalFunc::Closure(arg_list, env.clone(), Box::new(body))))
         }
-        "do" => { // TODO: Is 'do' actually a new scope?
+        "do" => { // TODO: Is 'do' actually a new scope? Apparently not.
             let mut res = Mal::Nil;
             for arg in list.drain(..) {
                 res = arg;
@@ -165,28 +176,42 @@ fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Resul
 
 /// Resolves the given value to a function and calls it.
 fn apply_function(func: &mut Mal, args: &mut MalList, env: &mut Env) -> mal::Result<Mal> {
+    use mal::types::MalFunc::*;
     eval(func, env)?;
     let function = func.as_function()?;
     env.with_new_scope(|env| {
+        // Evaluate the argument values in the outer env.
         eval_list(args, env)
     })?;
     match *function {
-        MalFunc::Defined(ref arg_names, ref body) => {
-            assert_arg_len("#<function>", arg_names.len(), args)?;
-            // Clone the body to let eval modify it.
-            let mut body: Mal = (**body).clone();
-            env.with_new_scope(|env| {
-                for name in arg_names.iter() {
-                    let symbol = name.clone();
-                    let value = args.pop_front().unwrap();
-                    env.set(symbol, value);
-                }
-                eval(&mut body, env)
-            })?;
-            Ok(body)
+        // NOTE: This should've been cloned at env.get, so safe to modify.
+        Closure(ref mut arg_names, ref mut closure_env, ref mut body) => {
+            apply_closure(arg_names, args, closure_env, body)
         }
-        MalFunc::Native(_, ref mut func) => {
+        NamedClosure(ref mut name, ref mut arg_names, 
+                ref mut closure_env, ref mut body) => {
+            let self_reference = NamedClosure(name.clone(), arg_names.clone(), 
+                closure_env.clone(), body.clone());
+            closure_env.set(name.clone(), self_reference);
+            apply_closure(arg_names, args, closure_env, body)
+        }
+        Native(_, ref mut func) => {
             func(args)
         }
     }
+}
+
+fn apply_closure(arg_names: &mut VecDeque<Symbol>, args: &mut MalList, 
+        closure_env: &mut Env, body: &mut Mal) -> mal::Result<Mal> {
+    assert_arg_len("#<function>", arg_names.len(), args)?;
+    // Bind the arguments in the closure env.
+    for name in arg_names.drain(..) {
+        let symbol = name.clone();
+        let value = args.pop_front().unwrap();
+        closure_env.set(symbol, value);
+    }
+
+    eval(body, closure_env)?;
+    // Clone the reduced result for less garbage.
+    Ok(body.clone())
 }

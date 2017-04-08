@@ -4,6 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::clone;
 use std::cmp;
+use env::Env;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mal {
@@ -288,7 +289,11 @@ pub type NativeFunc = fn(&mut MalList) -> Result<Mal>;
 
 pub enum MalFunc {
     Native(&'static str, NativeFunc),
-    Defined(VecDeque<Symbol>, Box<Mal>),
+    /// args, closed environment, body
+    Closure(VecDeque<Symbol>, Env, Box<Mal>),
+    /// name, args, closed env, body
+    /// What would be a 'function' in another language.
+    NamedClosure(Symbol, VecDeque<Symbol>, Env, Box<Mal>),
 }
 
 impl fmt::Debug for MalFunc {
@@ -298,8 +303,11 @@ impl fmt::Debug for MalFunc {
             Native(name, _) => {
                 write!(f, "MalFunc::Native {{ \"{}\" }}", name)
             }
-            Defined(ref args, ref body) => {
-                write!(f, "MalFunc::Defined({:?}){{ {:?} }}", args, body)
+            Closure(ref args, ref _env, ref body) => {
+                write!(f, "MalFunc::Closure {{ ({:?}) => {:?} }}", args, body)
+            }
+            NamedClosure(ref name, ref args, ref _env, ref body) => {
+                write!(f, "MalFunc::NamedClosure {{ {}({:?}) => {:?} }}", name.text(), args, body)
             }
         }
     }
@@ -311,8 +319,11 @@ impl clone::Clone for MalFunc {
             MalFunc::Native(name, func) => {
                 MalFunc::Native(name, func)
             }
-            MalFunc::Defined(ref args, ref body) => {
-                MalFunc::Defined(args.clone(), body.clone())
+            MalFunc::Closure(ref args, ref env, ref body) => {
+                MalFunc::Closure(args.clone(), env.clone(), body.clone())
+            }
+            MalFunc::NamedClosure(ref name, ref args, ref env, ref body) => {
+                MalFunc::NamedClosure(name.clone(), args.clone(), env.clone(), body.clone())
             }
         }
     }
@@ -325,8 +336,11 @@ impl cmp::PartialEq for MalFunc {
             (&Native(name, _), &Native(oname, _)) => {
                 oname == name
             }
-            (&Defined(ref args, ref body), &Defined(ref oargs, ref obody)) => {
-                oargs == args && obody == body
+            (&Closure(ref args, ref env, ref body), &Closure(ref oargs, ref oenv, ref obody)) => {
+                oargs == args && obody == body && oenv == env
+            }
+            (&NamedClosure(ref name, ref args, ref env, ref body), &NamedClosure(ref oname, ref oargs, ref oenv, ref obody)) => {
+                oname == name && oargs == args && obody == body && oenv == env
             }
             _ => false,
         }

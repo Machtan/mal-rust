@@ -45,9 +45,10 @@ fn pr_str_into(mal: &Mal, string: &mut String, print_readably: bool) {
         Fn(ref f) => {
             match *f {
                 MalFunc::Native(name, _) => string.push_str(name),
-                MalFunc::Defined(ref args, ref body) => {
+                MalFunc::Closure(ref args, ref _env, ref body) |
+                MalFunc::NamedClosure(_, ref args, ref _env, ref body) => {
                     if ! print_readably {
-                        string.push('#');
+                        string.push_str("#<function>");
                     } else {
                         string.push_str("(fn* (");
                         let len = args.len();

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use types::{Mal, NativeFunc, MalFunc, Symbol};
 use errors::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EnvChange {
     /// A new scope was entered
     NewScopeEntered,
@@ -12,7 +12,7 @@ pub enum EnvChange {
     BindingReplaced(Symbol, Mal)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Env {
     map: HashMap<Symbol, Mal>,
     history: Vec<EnvChange>,

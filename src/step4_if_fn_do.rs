@@ -5,7 +5,7 @@ extern crate error_chain;
 
 mod eval;
 
-use mal::{Mal, Env};
+use mal::{Mal, Env, MalFunc, Symbol, MalList};
 use std::io::{self, Write, BufRead};
 use std::env;
 use std::iter;
@@ -47,12 +47,20 @@ fn print_err(e: &mal::Error) {
     }*/
 }
 
+fn nop(_args: &mut MalList) -> mal::Result<Mal> {
+    Ok(Mal::Nil)
+}
+
 fn main() {
     let mut env = mal::core_env();
     
     // If args are given, don't start in interactive mode.
     let args = env::args().skip(1).collect::<Vec<_>>();
     if ! args.is_empty() {
+        // Overwrite the print functions to avoid bad output!
+        let nopfunc = MalFunc::Native("nop", nop);
+        env.set(Symbol::new("prn"), nopfunc);
+        
         for arg in args {
             match rep(&arg, &mut env) {
                 Ok(res) => {

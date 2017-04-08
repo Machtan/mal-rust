@@ -14,6 +14,7 @@ pub fn core_env() -> Env {
     env.add_native_func("list", list).unwrap();
     env.add_native_func("list?", listp).unwrap();
     env.add_native_func("empty?", emptyp).unwrap();
+    env.add_native_func("count", count).unwrap();
     env.add_native_func("=", eq).unwrap();
     // TODO: favor names like 'gt' (arrows seem misleading in lisp-syntax) 
     env.add_native_func("<", lt).unwrap(); 
@@ -112,6 +113,18 @@ fn emptyp(args: &mut MalList) -> Result<Mal> {
         Mal::Arr(ref arr) => Ok(arr.is_empty().into()),
         Mal::Map(ref map) => Ok(map.is_empty().into()),
         ref other => bail!("'empty?' takes a collection type, found {}", other.type_name()),
+    }
+}
+
+fn count(args: &mut MalList) -> Result<Mal> {
+    assert_nargs("count", 1, args)?;
+    let arg = args.pop_front().unwrap();
+    match arg {
+        Mal::List(ref list) => Ok((list.len() as f64).into()),
+        Mal::Arr(ref arr) => Ok((arr.len() as f64).into()),
+        Mal::Map(ref map) => Ok((map.len() as f64).into()),
+        Mal::Nil => Ok(0.0f64.into()),
+        ref other => bail!("'count' takes a collection type (or nil), found {}", other.type_name()),
     }
 }
 

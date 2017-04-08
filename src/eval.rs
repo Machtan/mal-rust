@@ -127,14 +127,12 @@ fn apply_symbol(symbol: Symbol, list: &mut MalList, env: &mut Env) -> mal::Resul
             Ok(Mal::Fn(MalFunc::Defined(arg_list, Box::new(body))))
         }
         "do" => { // TODO: Is 'do' actually a new scope?
-            env.with_new_scope(|env| {
-                let mut res = Mal::Nil;
-                for arg in list.drain(..) {
-                    res = arg;
-                    eval(&mut res, env)?;
-                }
-                Ok(res)
-            })
+            let mut res = Mal::Nil;
+            for arg in list.drain(..) {
+                res = arg;
+                eval(&mut res, env)?;
+            }
+            Ok(res)
         }
         "if" => {
             if ! (list.len() == 2 || list.len() == 3) {

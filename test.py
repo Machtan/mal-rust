@@ -85,10 +85,15 @@ def run_tests(tests, run_cmd):
             #    print("  {}".format(line))
             #print("<end>")
             if len(output) != len(test.cases):
-                print("OUTPUT:")
+                failed[test.type].append(TestFailure(test, []))
+                print("TEST FAILED!")
+                print("ERROR: Got {} lines of output, expected {}!".format(len(output), len(test.cases)))
+                print_tests([test])
+                print("RECEIVED OUTPUT:")
                 for line in output:
                     print("-> {}".format(line))
-                raise Exception("ERROR: Got {} lines of output, expected {}!".format(len(output), len(test.cases)))
+                
+                continue
         
         # Match each line with the expected output
         maxw = len(str(len(test.cases)))
@@ -183,11 +188,12 @@ def load_tests(step_name):
             start_new_test(i+1)
             test_name = line[2:].strip()
             test_should_fail = False
-        
-        if line == "" or line.isspace():
             continue
         
-        if line.startswith(";>>>"):
+        elif line == "" or line.isspace():
+            continue
+        
+        elif line.startswith(";>>>"):
             ll = line.lower()
             if "optional" in ll:
                 test_type = TestType.Optional
@@ -223,6 +229,10 @@ def load_tests(step_name):
                 cases.append(case)
                 case_input_lines.clear()
             
+            else:
+                print("WARN: Line {}: Found nonspecial line starting with ';'".format(i+1))
+                print("  {}".format(line))
+            
             continue
         
         else:
@@ -231,7 +241,7 @@ def load_tests(step_name):
                 case_input_lines.append(line)
             else:
                 case_input_lines.append(line)
-                print("WARN: Line {}: Found second input line in a row".format(i+1))
+                #print("WARN: Line {}: Found second input line in a row".format(i+1))
     
     if case_input_lines:
         raise Exception("END: No output found for last input line")

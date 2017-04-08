@@ -68,7 +68,8 @@ fn main() {
     if ! args.is_empty() {
         // Overwrite the print functions to avoid bad output!
         let nopfunc = MalFunc::Native("nop", nop);
-        env.set(Symbol::new("prn"), nopfunc);
+        env.set(Symbol::new("prn"), nopfunc.clone());
+        env.set(Symbol::new("println"), nopfunc.clone());
         
         for arg in args {
             match rep(&arg, &mut env) {

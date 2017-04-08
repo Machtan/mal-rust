@@ -10,7 +10,6 @@ pub fn core_env() -> Env {
     env.add_native_func("-", sub).unwrap();
     env.add_native_func("*", mul).unwrap();
     env.add_native_func("/", div).unwrap();
-    env.add_native_func("prn", prn).unwrap();
     env.add_native_func("list", list).unwrap();
     env.add_native_func("list?", listp).unwrap();
     env.add_native_func("empty?", emptyp).unwrap();
@@ -22,7 +21,40 @@ pub fn core_env() -> Env {
     env.add_native_func(">", gt).unwrap();
     env.add_native_func(">=", ge).unwrap();
     env.add_native_func("pr-str", pr_str).unwrap();
+    env.add_native_func("str", str_).unwrap();
+    env.add_native_func("prn", prn).unwrap();
+    env.add_native_func("println", println).unwrap();
     env
+}
+
+fn println(args: &mut MalList) -> Result<Mal> {
+    if let Mal::Str(string) = str_(args).unwrap() {
+        println!("{}", string);
+        Ok(Mal::Nil)
+    } else {
+        unreachable!();
+    }
+}
+
+fn prn(args: &mut MalList) -> Result<Mal> {
+    if let Mal::Str(string) = pr_str(args).unwrap() {
+        println!("{}", string);
+        Ok(Mal::Nil)
+    } else {
+        unreachable!();
+    }
+}
+
+fn str_(args: &mut MalList) -> Result<Mal> {
+    if args.is_empty() {
+        return Ok(String::from("").into());
+    }
+    let first = args.pop_front().unwrap();
+    let mut string = printer::pr_str(&first, false);
+    for arg in args.drain(..) {
+        printer::pr_str_into(&arg, &mut string, false);
+    }
+    Ok(string.into())
 }
 
 fn pr_str(args: &mut MalList) -> Result<Mal> {
@@ -154,14 +186,6 @@ fn listp(args: &mut MalList) -> Result<Mal> {
 
 fn list(args: &mut MalList) -> Result<Mal> {
     Ok(args.clone().into())
-}
-
-fn prn(args: &mut MalList) -> Result<Mal> {
-    assert_nargs("pr_str", 1, args)?;
-    let arg = args.pop_front().unwrap();
-    let string = printer::pr_str(&arg, true);
-    println!("{}", string);
-    Ok(Mal::Nil)
 }
 
 fn add(args: &mut MalList) -> Result<Mal> {

@@ -350,6 +350,7 @@ a
 
 (prn "abc  def" "ghi jkl")
 ; "abc  def" "ghi jkl"
+;=>nil
 
 (prn "\"")
 ; "\""
@@ -361,7 +362,7 @@ a
 
 (prn "abc\\def\\ghi")
 ; "abc\\def\\ghi"
-nil
+;=>nil
 
 (prn (list 1 2 "abc" "\"") "def")
 ; (1 2 "abc" "\"") "def"
@@ -383,6 +384,7 @@ nil
 
 (println "abc  def" "ghi jkl")
 ; abc  def ghi jkl
+;=>nil
 
 (println "\"")
 ; "

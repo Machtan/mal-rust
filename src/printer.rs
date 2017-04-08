@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 fn pr_malstr_into(s: &str, string: &mut String, print_readably: bool) {
     if ! print_readably {
-        write!(string, "\"{}\"", s).unwrap();
+        string.push_str(s);
     } else {
         string.push('"');
         for ch in s.chars() {

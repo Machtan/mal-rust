@@ -51,8 +51,17 @@ fn nop(_args: &mut MalList) -> mal::Result<Mal> {
     Ok(Mal::Nil)
 }
 
+const MAL_DEFS: &'static str = "
+(def! not (fn* (a) (if a false true)))
+";
+
 fn main() {
     let mut env = mal::core_env();
+    for line in MAL_DEFS.lines() {
+        if line == "" { continue; }
+        let mut defs = read(MAL_DEFS).expect("Could not read def");
+        eval(&mut defs, &mut env).expect("Could not eval def");
+    }
     
     // If args are given, don't start in interactive mode.
     let args = env::args().skip(1).collect::<Vec<_>>();
